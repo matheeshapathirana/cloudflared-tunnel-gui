@@ -163,6 +163,30 @@ describe('UpdateManager', () => {
     manager.stop()
   })
 
+  it('a repo with no published release gives the same friendly message, not the raw GitHub error', async () => {
+    updater.checkForUpdates.mockRejectedValueOnce(
+      new Error(
+        'Cannot parse releases feed: Error: Unable to find latest version on GitHub (https://github.com/o/r/releases/latest), please ensure a production release exists'
+      )
+    )
+    const manager = create()
+    manager.start()
+
+    const state = await manager.check()
+    expect(state.status).toEqual({ state: 'error', message: 'No update information found yet.' })
+    manager.stop()
+  })
+
+  it('a feed error that does not mean "no release" keeps its own first line', async () => {
+    updater.checkForUpdates.mockRejectedValueOnce(new Error('net::ERR_INTERNET_DISCONNECTED'))
+    const manager = create()
+    manager.start()
+
+    const state = await manager.check()
+    expect(state.status).toEqual({ state: 'error', message: 'net::ERR_INTERNET_DISCONNECTED' })
+    manager.stop()
+  })
+
   it.each([
     ['idle', () => undefined],
     ['checking', () => updater.emit('checking-for-update')],

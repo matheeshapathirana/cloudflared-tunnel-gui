@@ -51,10 +51,14 @@ export function UpdatesCard(): React.JSX.Element {
             <span className="text-muted-foreground">Environment</span>
             <span className="font-medium">Desktop (Electron)</span>
           </div>
-          <div className="flex items-center justify-between text-xs">
-            <span className="text-muted-foreground">Status</span>
+          <div className="flex items-start justify-between gap-4 text-xs">
+            <span className="shrink-0 text-muted-foreground">Status</span>
             <span
-              className={status?.state === 'error' ? 'text-destructive font-medium' : 'font-medium'}
+              className={
+                status?.state === 'error'
+                  ? 'min-w-0 break-words text-right text-destructive font-medium'
+                  : 'min-w-0 break-words text-right font-medium'
+              }
               role="status"
             >
               {update ? describeUpdate(update) : 'Loading…'}
