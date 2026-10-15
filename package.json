@@ -18,7 +18,9 @@
     "postinstall": "electron-builder install-app-deps",
     "build:unpack": "npm run build && electron-builder --dir",
     "build:win": "npm run build && electron-builder --win",
-    "notices": "node scripts/generate-third-party-notices.mjs"
+    "notices": "node scripts/generate-third-party-notices.mjs",
+    "release:check": "node scripts/check-release-version.mjs",
+    "test:scripts": "node --test \"scripts/*.test.mjs\""
   },
   "dependencies": {
     "@electron-toolkit/utils": "^4.0.0",

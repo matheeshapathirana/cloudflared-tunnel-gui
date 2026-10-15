@@ -1,0 +1,37 @@
+# Pushing a `v*` tag builds the Windows installer and uploads it to a DRAFT GitHub release.
+# Installed apps only see the update after the owner reviews the draft and clicks Publish.
+name: Release
+
+on:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: npm
+
+      - run: npm ci
+
+      - name: Check tag matches package.json version
+        run: npm run release:check -- ${{ github.ref_name }}
+
+      - run: npm run lint
+      - run: npm run typecheck
+      - run: npm test
+      - run: npm run test:scripts
+      - run: npm run build
+
+      - name: Build installer and publish draft release
+        run: npx electron-builder --win --publish always
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
