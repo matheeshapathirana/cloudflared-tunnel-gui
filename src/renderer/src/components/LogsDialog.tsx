@@ -85,40 +85,40 @@ export function LogsDialog({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-xs">
-      <div className="flex h-[80vh] w-full max-w-4xl flex-col rounded-xl border border-neutral-800 bg-neutral-950 shadow-2xl">
+      <div className="flex h-[80vh] w-full max-w-4xl flex-col rounded-xl border border-border bg-card shadow-2xl">
         {/* Header */}
-        <div className="flex items-center justify-between border-b border-neutral-800 px-6 py-4">
+        <div className="flex items-center justify-between border-b border-border px-6 py-4">
           <div>
-            <h2 className="text-lg font-semibold text-neutral-100">Live Logs</h2>
-            <p className="text-xs text-neutral-400">
+            <h2 className="text-lg font-semibold text-foreground">Live Logs</h2>
+            <p className="text-xs text-muted-foreground">
               {tunnelName ? `Tunnel: ${tunnelName}` : 'Process Log Stream'}
             </p>
           </div>
           <Button variant="ghost" size="icon" onClick={onClose} aria-label="Close logs">
-            <X className="h-5 w-5 text-neutral-400 hover:text-neutral-200" />
+            <X className="h-5 w-5 text-muted-foreground hover:text-foreground" />
           </Button>
         </div>
 
         {/* Toolbar */}
-        <div className="flex flex-wrap items-center gap-3 border-b border-neutral-800 bg-neutral-900/50 px-6 py-3">
+        <div className="flex flex-wrap items-center gap-3 border-b border-border bg-muted/50 px-6 py-3">
           <div className="flex-1 min-w-[200px]">
             <Input
               placeholder="Search in logs..."
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              className="h-8 text-xs bg-neutral-900 border-neutral-800"
+              className="h-8 text-xs bg-muted border-border"
             />
           </div>
 
-          <div className="flex items-center gap-1 rounded-lg border border-neutral-800 bg-neutral-900 p-1 text-xs">
+          <div className="flex items-center gap-1 rounded-lg border border-border bg-muted p-1 text-xs">
             {(['all', 'info', 'warn', 'error'] as const).map((lvl) => (
               <button
                 key={lvl}
                 onClick={() => setFilterLevel(lvl)}
                 className={`rounded px-2.5 py-1 font-medium capitalize transition-colors ${
                   filterLevel === lvl
-                    ? 'bg-neutral-800 text-neutral-100'
-                    : 'text-neutral-400 hover:text-neutral-200'
+                    ? 'bg-accent text-foreground'
+                    : 'text-muted-foreground hover:text-foreground'
                 }`}
               >
                 {lvl}
@@ -131,7 +131,7 @@ export function LogsDialog({
             size="sm"
             onClick={() => setAutoScroll((prev) => !prev)}
             className={`h-8 gap-1.5 text-xs ${
-              autoScroll ? 'border-primary/50 text-primary' : 'text-neutral-400'
+              autoScroll ? 'border-primary/50 text-primary' : 'text-muted-foreground'
             }`}
           >
             <ArrowDown className="h-3.5 w-3.5" />
@@ -155,9 +155,9 @@ export function LogsDialog({
         </div>
 
         {/* Log Viewer Container */}
-        <div className="flex-1 overflow-y-auto bg-neutral-950 p-4 font-mono text-xs text-neutral-300">
+        <div className="flex-1 overflow-y-auto bg-card p-4 font-mono text-xs text-foreground/80">
           {filteredLogs.length === 0 ? (
-            <div className="flex h-full items-center justify-center text-neutral-500">
+            <div className="flex h-full items-center justify-center text-muted-foreground">
               {logs.length === 0 ? 'No logs recorded yet.' : 'No logs match the current filters.'}
             </div>
           ) : (
@@ -167,10 +167,10 @@ export function LogsDialog({
                   key={idx}
                   className={`leading-relaxed break-all rounded px-1.5 py-0.5 ${
                     line.toLowerCase().includes('"error"') || line.toLowerCase().includes('err')
-                      ? 'bg-red-950/30 text-red-400'
+                      ? 'bg-red-500/10 text-red-600 dark:text-red-400'
                       : line.toLowerCase().includes('"warn"')
-                        ? 'bg-amber-950/30 text-amber-300'
-                        : 'hover:bg-neutral-900/50'
+                        ? 'bg-amber-500/10 text-amber-700 dark:text-amber-300'
+                        : 'hover:bg-muted/50'
                   }`}
                 >
                   {line}

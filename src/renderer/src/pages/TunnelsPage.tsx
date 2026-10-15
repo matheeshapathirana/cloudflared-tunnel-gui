@@ -51,7 +51,7 @@ function getKindBadge(kind: Tunnel['kind']): React.JSX.Element {
       return <Badge variant="secondary">Quick</Badge>
     case 'remote':
       return (
-        <Badge variant="default" className="bg-indigo-600 hover:bg-indigo-500 text-white">
+        <Badge variant="default" className="bg-indigo-600 text-white">
           Remote
         </Badge>
       )
@@ -74,21 +74,21 @@ function getStatusIndicator(status?: TunnelStatus): React.JSX.Element {
   switch (state) {
     case 'connected':
       return (
-        <span className="flex items-center gap-1.5 text-xs text-emerald-400 font-medium">
+        <span className="flex items-center gap-1.5 text-xs text-emerald-600 dark:text-emerald-400 font-medium">
           <Circle className="size-2 fill-emerald-400" />
           Connected {status?.state === 'connected' && `(${status.connections})`}
         </span>
       )
     case 'starting':
       return (
-        <span className="flex items-center gap-1.5 text-xs text-amber-400 font-medium">
+        <span className="flex items-center gap-1.5 text-xs text-amber-600 dark:text-amber-400 font-medium">
           <Circle className="size-2 fill-amber-400 animate-pulse" />
           Starting
         </span>
       )
     case 'degraded':
       return (
-        <span className="flex items-center gap-1.5 text-xs text-amber-500 font-medium">
+        <span className="flex items-center gap-1.5 text-xs text-amber-600 dark:text-amber-500 font-medium">
           <Circle className="size-2 fill-amber-500" />
           Degraded
         </span>
@@ -292,7 +292,7 @@ export function TunnelsPage({ onNavigateToSettings }: TunnelsPageProps): React.J
                         variant="outline"
                         size="sm"
                         onClick={() => setSelectedEditTunnel(tunnel)}
-                        className="h-8 gap-1.5 text-xs text-neutral-300"
+                        className="h-8 gap-1.5 text-xs text-foreground/80"
                       >
                         <FileCode className="h-3.5 w-3.5" />
                         Ingress
@@ -304,9 +304,9 @@ export function TunnelsPage({ onNavigateToSettings }: TunnelsPageProps): React.J
                         variant="outline"
                         size="sm"
                         onClick={() => setSelectedHostnamesTunnel(tunnel)}
-                        className="h-8 gap-1.5 text-xs text-neutral-300"
+                        className="h-8 gap-1.5 text-xs text-foreground/80"
                       >
-                        <Globe className="h-3.5 w-3.5 text-indigo-400" />
+                        <Globe className="h-3.5 w-3.5 text-indigo-600 dark:text-indigo-400" />
                         Hostnames
                       </Button>
                     )}
@@ -315,7 +315,7 @@ export function TunnelsPage({ onNavigateToSettings }: TunnelsPageProps): React.J
                       variant="outline"
                       size="sm"
                       onClick={() => setSelectedLogsTunnel({ id: tunnel.id, name: tunnel.name })}
-                      className="h-8 gap-1.5 text-xs text-neutral-300"
+                      className="h-8 gap-1.5 text-xs text-foreground/80"
                     >
                       <FileText className="h-3.5 w-3.5" />
                       Logs
@@ -329,14 +329,14 @@ export function TunnelsPage({ onNavigateToSettings }: TunnelsPageProps): React.J
                           installServiceMutation.isPending || uninstallServiceMutation.isPending
                         }
                         onClick={() => handleToggleRunMode(tunnel)}
-                        className="h-8 gap-1.5 text-xs text-neutral-300"
+                        className="h-8 gap-1.5 text-xs text-foreground/80"
                         title={
                           tunnel.runMode === 'app'
                             ? 'Install and run as background Windows service'
                             : 'Uninstall Windows service and run in app'
                         }
                       >
-                        <Server className="h-3.5 w-3.5 text-blue-400" />
+                        <Server className="h-3.5 w-3.5 text-blue-600 dark:text-blue-400" />
                         {tunnel.runMode === 'app' ? 'Run as service' : 'Run in app'}
                       </Button>
                     )}
@@ -372,7 +372,7 @@ export function TunnelsPage({ onNavigateToSettings }: TunnelsPageProps): React.J
                           setDeleteConfirmText('')
                           setTunnelToDelete(tunnel)
                         }}
-                        className="h-8 px-2 text-neutral-400 hover:text-destructive hover:bg-destructive/10"
+                        className="h-8 px-2 text-muted-foreground hover:text-destructive hover:bg-destructive/10"
                         aria-label={`Delete ${tunnel.kind} tunnel ${tunnel.name}`}
                       >
                         <Trash2 className="h-3.5 w-3.5" />
@@ -418,34 +418,33 @@ export function TunnelsPage({ onNavigateToSettings }: TunnelsPageProps): React.J
       {/* Delete Remote Tunnel Confirmation Dialog */}
       {tunnelToDelete && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-xs">
-          <div className="flex w-full max-w-md flex-col rounded-xl border border-neutral-800 bg-neutral-950 p-6 shadow-2xl space-y-4">
+          <div className="flex w-full max-w-md flex-col rounded-xl border border-border bg-card p-6 shadow-2xl space-y-4">
             <div className="flex items-start gap-3">
               <div className="flex size-10 items-center justify-center rounded-full bg-destructive/10 text-destructive shrink-0">
                 <AlertTriangle className="size-5" />
               </div>
               <div>
-                <h3 className="text-base font-semibold text-neutral-100">
+                <h3 className="text-base font-semibold text-foreground">
                   Delete {tunnelToDelete.kind === 'local' ? 'Local' : 'Remote'} Tunnel
                 </h3>
-                <p className="text-xs text-neutral-400 mt-1">
+                <p className="text-xs text-muted-foreground mt-1">
                   Are you sure you want to delete {tunnelToDelete.kind} tunnel{' '}
-                  <strong className="text-neutral-200">{tunnelToDelete.name}</strong>?
+                  <strong className="text-foreground">{tunnelToDelete.name}</strong>?
                 </p>
                 {tunnelToDelete.kind === 'local' ? (
                   <>
-                    <p className="text-xs text-neutral-400 mt-2">
+                    <p className="text-xs text-muted-foreground mt-2">
                       This will stop the tunnel, remove DNS records that point at it (when a
                       Cloudflare API token is connected), permanently delete the tunnel in
                       Cloudflare, and delete these files:
                     </p>
-                    <ul className="mt-1.5 list-disc space-y-0.5 pl-4 font-mono text-[11px] text-neutral-400 break-words">
+                    <ul className="mt-1.5 list-disc space-y-0.5 pl-4 font-mono text-[11px] text-muted-foreground break-words">
                       <li>{tunnelToDelete.local?.configPath}</li>
                       <li>{tunnelToDelete.cfTunnelId}.json (credentials)</li>
                     </ul>
-                    <p className="text-xs text-neutral-400 mt-2">
+                    <p className="text-xs text-muted-foreground mt-2">
                       This cannot be undone. Type{' '}
-                      <strong className="text-neutral-200">{tunnelToDelete.name}</strong> to
-                      confirm.
+                      <strong className="text-foreground">{tunnelToDelete.name}</strong> to confirm.
                     </p>
                     <Input
                       value={deleteConfirmText}
@@ -458,7 +457,7 @@ export function TunnelsPage({ onNavigateToSettings }: TunnelsPageProps): React.J
                     />
                   </>
                 ) : (
-                  <p className="text-xs text-neutral-400 mt-2">
+                  <p className="text-xs text-muted-foreground mt-2">
                     This will stop the tunnel, remove all associated DNS CNAME records, and
                     permanently delete the tunnel in Cloudflare.
                   </p>
@@ -468,7 +467,7 @@ export function TunnelsPage({ onNavigateToSettings }: TunnelsPageProps): React.J
 
             {deleteError && <p className="text-xs text-destructive font-medium">{deleteError}</p>}
 
-            <div className="flex items-center justify-end gap-2 pt-2 border-t border-neutral-800">
+            <div className="flex items-center justify-end gap-2 pt-2 border-t border-border">
               <Button
                 variant="ghost"
                 size="sm"

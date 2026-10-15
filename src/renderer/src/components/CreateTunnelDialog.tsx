@@ -73,17 +73,17 @@ export function CreateTunnelDialog({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-xs">
-      <div className="flex w-full max-w-md flex-col rounded-xl border border-neutral-800 bg-neutral-950 p-6 shadow-2xl">
+      <div className="flex w-full max-w-md flex-col rounded-xl border border-border bg-card p-6 shadow-2xl">
         {/* Header */}
-        <div className="flex items-center justify-between pb-4 border-b border-neutral-800">
+        <div className="flex items-center justify-between pb-4 border-b border-border">
           <div>
-            <h2 className="text-lg font-semibold text-neutral-100">Create New Tunnel</h2>
-            <p className="text-xs text-neutral-400">
+            <h2 className="text-lg font-semibold text-foreground">Create New Tunnel</h2>
+            <p className="text-xs text-muted-foreground">
               Configure a new persistent tunnel routed to Cloudflare.
             </p>
           </div>
           <Button variant="ghost" size="icon" onClick={onClose} aria-label="Close dialog">
-            <X className="h-5 w-5 text-neutral-400 hover:text-neutral-200" />
+            <X className="h-5 w-5 text-muted-foreground hover:text-foreground" />
           </Button>
         </div>
 
@@ -91,22 +91,22 @@ export function CreateTunnelDialog({
         <form onSubmit={handleCreate} className="space-y-4 pt-4">
           {/* Tunnel Type Selection */}
           <div className="space-y-2">
-            <Label className="text-xs font-medium text-neutral-300">Tunnel Type</Label>
+            <Label className="text-xs font-medium text-foreground/80">Tunnel Type</Label>
             <div className="grid grid-cols-2 gap-2">
               <button
                 type="button"
                 onClick={() => setKind('remote')}
                 className={`flex flex-col items-start gap-1 rounded-lg border p-3 text-left transition-colors ${
                   kind === 'remote'
-                    ? 'border-indigo-500 bg-indigo-950/20 text-neutral-100'
-                    : 'border-neutral-800 bg-neutral-900/40 text-neutral-400 hover:border-neutral-700 hover:text-neutral-300'
+                    ? 'border-indigo-500 bg-indigo-500/10 text-foreground'
+                    : 'border-border bg-muted/40 text-muted-foreground hover:border-foreground/30 hover:text-foreground'
                 }`}
               >
                 <div className="flex items-center gap-1.5 font-medium text-xs">
-                  <Cloud className="h-3.5 w-3.5 text-indigo-400" />
+                  <Cloud className="h-3.5 w-3.5 text-indigo-600 dark:text-indigo-400" />
                   <span>Remote</span>
                 </div>
-                <span className="text-[11px] leading-tight text-neutral-400">
+                <span className="text-[11px] leading-tight text-muted-foreground">
                   Cloudflare API-managed. Zero local configuration files.
                 </span>
               </button>
@@ -116,15 +116,15 @@ export function CreateTunnelDialog({
                 onClick={() => setKind('local')}
                 className={`flex flex-col items-start gap-1 rounded-lg border p-3 text-left transition-colors ${
                   kind === 'local'
-                    ? 'border-indigo-500 bg-indigo-950/20 text-neutral-100'
-                    : 'border-neutral-800 bg-neutral-900/40 text-neutral-400 hover:border-neutral-700 hover:text-neutral-300'
+                    ? 'border-indigo-500 bg-indigo-500/10 text-foreground'
+                    : 'border-border bg-muted/40 text-muted-foreground hover:border-foreground/30 hover:text-foreground'
                 }`}
               >
                 <div className="flex items-center gap-1.5 font-medium text-xs">
-                  <HardDrive className="h-3.5 w-3.5 text-neutral-300" />
+                  <HardDrive className="h-3.5 w-3.5 text-foreground/80" />
                   <span>Local</span>
                 </div>
-                <span className="text-[11px] leading-tight text-neutral-400">
+                <span className="text-[11px] leading-tight text-muted-foreground">
                   YAML config-file managed in ~/.cloudflared.
                 </span>
               </button>
@@ -133,7 +133,7 @@ export function CreateTunnelDialog({
 
           {/* Tunnel Name Input */}
           <div className="space-y-2">
-            <Label htmlFor="tunnel-name" className="text-xs font-medium text-neutral-300">
+            <Label htmlFor="tunnel-name" className="text-xs font-medium text-foreground/80">
               Tunnel Name
             </Label>
             <Input
@@ -148,8 +148,8 @@ export function CreateTunnelDialog({
 
           {/* Warning Banner: Remote not connected */}
           {kind === 'remote' && !isAccountLoading && !isConnected && (
-            <div className="rounded-lg border border-amber-900/60 bg-amber-950/20 p-3 space-y-2">
-              <div className="flex items-start gap-2 text-amber-400 text-xs">
+            <div className="rounded-lg border border-amber-500/35 bg-amber-500/10 p-3 space-y-2">
+              <div className="flex items-start gap-2 text-amber-600 dark:text-amber-400 text-xs">
                 <ShieldAlert className="h-4 w-4 shrink-0 mt-0.5" />
                 <span>
                   Connect your Cloudflare account in Settings before creating remote tunnels.
@@ -164,7 +164,7 @@ export function CreateTunnelDialog({
                     onClose()
                     onNavigateToSettings()
                   }}
-                  className="w-full gap-1.5 text-xs border-amber-800/80 text-amber-300 hover:bg-amber-950/40"
+                  className="w-full gap-1.5 text-xs border-amber-500/35 text-amber-700 dark:text-amber-300 hover:bg-amber-500/20"
                 >
                   <span>Go to Settings</span>
                   <ArrowRight className="h-3.5 w-3.5" />
@@ -175,13 +175,17 @@ export function CreateTunnelDialog({
 
           {/* Warning Banner: Local cert missing */}
           {kind === 'local' && !isCertLoading && !certInfo?.hasCert && (
-            <div className="rounded-lg border border-amber-900/60 bg-amber-950/20 p-3 space-y-2">
-              <div className="flex items-start gap-2 text-amber-400 text-xs">
+            <div className="rounded-lg border border-amber-500/35 bg-amber-500/10 p-3 space-y-2">
+              <div className="flex items-start gap-2 text-amber-600 dark:text-amber-400 text-xs">
                 <ShieldAlert className="h-4 w-4 shrink-0 mt-0.5" />
                 <span>
                   No Cloudflare origin certificate (
-                  <code className="font-mono text-amber-300">cert.pem</code>) found in{' '}
-                  <code className="font-mono text-amber-300">~/.cloudflared</code>.
+                  <code className="font-mono text-amber-700 dark:text-amber-300">cert.pem</code>)
+                  found in{' '}
+                  <code className="font-mono text-amber-700 dark:text-amber-300">
+                    ~/.cloudflared
+                  </code>
+                  .
                 </span>
               </div>
               <Button
@@ -190,7 +194,7 @@ export function CreateTunnelDialog({
                 size="sm"
                 onClick={handleLogin}
                 disabled={loginMutation.isPending}
-                className="w-full gap-1.5 text-xs border-amber-800/80 text-amber-300 hover:bg-amber-950/40"
+                className="w-full gap-1.5 text-xs border-amber-500/35 text-amber-700 dark:text-amber-300 hover:bg-amber-500/20"
               >
                 {loginMutation.isPending ? (
                   <Loader2 className="h-3.5 w-3.5 animate-spin" />
@@ -212,7 +216,7 @@ export function CreateTunnelDialog({
           )}
 
           {/* Actions */}
-          <div className="flex items-center justify-end gap-2 pt-2 border-t border-neutral-800">
+          <div className="flex items-center justify-end gap-2 pt-2 border-t border-border">
             <Button type="button" variant="ghost" size="sm" onClick={onClose}>
               Cancel
             </Button>

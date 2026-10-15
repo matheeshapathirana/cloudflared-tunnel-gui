@@ -205,7 +205,7 @@ export function SettingsPage(): React.JSX.Element {
         <CardHeader>
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
-              <Cloud className="size-5 text-indigo-400" />
+              <Cloud className="size-5 text-indigo-600 dark:text-indigo-400" />
               <div>
                 <CardTitle className="text-base">Cloudflare Account</CardTitle>
                 <CardDescription className="text-xs">
@@ -216,7 +216,7 @@ export function SettingsPage(): React.JSX.Element {
             </div>
 
             {isConnected ? (
-              <Badge className="bg-emerald-500/15 text-emerald-400 border-emerald-500/30 gap-1 text-xs">
+              <Badge className="bg-emerald-500/15 text-emerald-600 dark:text-emerald-400 border-emerald-500/30 gap-1 text-xs">
                 <CheckCircle2 className="size-3" />
                 Connected
               </Badge>
@@ -237,7 +237,7 @@ export function SettingsPage(): React.JSX.Element {
               <>
                 <div className="flex items-center justify-between">
                   <span className="text-muted-foreground text-xs font-medium">Account Name</span>
-                  <span className="text-xs font-semibold text-neutral-100">
+                  <span className="text-xs font-semibold text-foreground">
                     {accountStatus?.accountName || 'Unknown'}
                   </span>
                 </div>
@@ -246,7 +246,7 @@ export function SettingsPage(): React.JSX.Element {
                   <span className="text-muted-foreground text-xs font-medium shrink-0">
                     Account ID
                   </span>
-                  <code className="text-xs font-mono break-all text-right text-neutral-300">
+                  <code className="text-xs font-mono break-all text-right text-foreground/80">
                     {accountStatus?.accountId || 'N/A'}
                   </code>
                 </div>
@@ -262,7 +262,7 @@ export function SettingsPage(): React.JSX.Element {
               </>
             ) : (
               <div className="flex flex-col gap-1.5">
-                <p className="text-xs text-neutral-400">
+                <p className="text-xs text-muted-foreground">
                   Connect your Cloudflare API token to manage tunnels, view remote ingress
                   configurations, and automatically provision proxied DNS hostnames.
                 </p>
@@ -316,7 +316,7 @@ export function SettingsPage(): React.JSX.Element {
                     variant="ghost"
                     size="sm"
                     onClick={() => setShowDisconnectConfirm(true)}
-                    className="gap-1.5 text-xs text-neutral-400 hover:text-destructive hover:bg-destructive/10"
+                    className="gap-1.5 text-xs text-muted-foreground hover:text-destructive hover:bg-destructive/10"
                   >
                     <LogOut className="size-3.5" />
                     Disconnect
@@ -664,7 +664,7 @@ export function SettingsPage(): React.JSX.Element {
         <CardHeader className="flex flex-row items-center justify-between">
           <div>
             <CardTitle className="text-base flex items-center gap-2">
-              <Server className="size-4 text-blue-400" />
+              <Server className="size-4 text-blue-600 dark:text-blue-400" />
               Windows Services
             </CardTitle>
             <CardDescription className="text-xs">
@@ -709,11 +709,11 @@ export function SettingsPage(): React.JSX.Element {
                 return (
                   <div
                     key={svc.serviceName}
-                    className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 rounded-lg border border-neutral-800 bg-neutral-900/50 p-3"
+                    className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 rounded-lg border border-border bg-muted/50 p-3"
                   >
                     <div className="space-y-1 min-w-0">
                       <div className="flex items-center gap-2">
-                        <span className="font-mono text-xs font-semibold text-neutral-200">
+                        <span className="font-mono text-xs font-semibold text-foreground">
                           {svc.displayName || svc.serviceName}
                         </span>
                         <Badge
@@ -749,7 +749,7 @@ export function SettingsPage(): React.JSX.Element {
                           size="sm"
                           disabled={isActionPending}
                           onClick={() => adoptService.mutate({ serviceName: svc.serviceName })}
-                          className="h-7 text-xs gap-1 text-amber-400 hover:text-amber-300"
+                          className="h-7 text-xs gap-1 text-amber-600 dark:text-amber-400 hover:text-amber-800 dark:hover:text-amber-300"
                         >
                           {adoptService.isPending ? (
                             <Loader2 className="size-3 animate-spin" />
@@ -790,7 +790,7 @@ export function SettingsPage(): React.JSX.Element {
                         size="sm"
                         disabled={!isRunning || isActionPending}
                         onClick={() => restartService.mutate({ serviceName: svc.serviceName })}
-                        className="h-7 text-xs px-2 text-muted-foreground hover:text-neutral-200"
+                        className="h-7 text-xs px-2 text-muted-foreground hover:text-foreground"
                         title="Restart service"
                       >
                         <RefreshCw className="size-3" />
@@ -827,16 +827,16 @@ export function SettingsPage(): React.JSX.Element {
       {/* Connect Cloudflare Account Dialog */}
       {isConnectModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-xs">
-          <div className="flex w-full max-w-md flex-col rounded-xl border border-neutral-800 bg-neutral-950 p-6 shadow-2xl">
+          <div className="flex w-full max-w-md flex-col rounded-xl border border-border bg-card p-6 shadow-2xl">
             {/* Modal Header */}
-            <div className="flex items-center justify-between pb-4 border-b border-neutral-800">
+            <div className="flex items-center justify-between pb-4 border-b border-border">
               <div className="flex items-center gap-2">
-                <Cloud className="size-5 text-indigo-400" />
+                <Cloud className="size-5 text-indigo-600 dark:text-indigo-400" />
                 <div>
-                  <h2 className="text-lg font-semibold text-neutral-100">
+                  <h2 className="text-lg font-semibold text-foreground">
                     {isConnected ? 'Update Cloudflare Token' : 'Connect Cloudflare Account'}
                   </h2>
-                  <p className="text-xs text-neutral-400">
+                  <p className="text-xs text-muted-foreground">
                     API token encrypted using Windows DPAPI.
                   </p>
                 </div>
@@ -847,7 +847,7 @@ export function SettingsPage(): React.JSX.Element {
                 onClick={() => setIsConnectModalOpen(false)}
                 aria-label="Close dialog"
               >
-                <X className="h-5 w-5 text-neutral-400 hover:text-neutral-200" />
+                <X className="h-5 w-5 text-muted-foreground hover:text-foreground" />
               </Button>
             </div>
 
@@ -856,7 +856,7 @@ export function SettingsPage(): React.JSX.Element {
               {/* Token Input */}
               <div className="space-y-2">
                 <div className="flex items-center justify-between">
-                  <Label htmlFor="cf-token" className="text-xs font-medium text-neutral-300">
+                  <Label htmlFor="cf-token" className="text-xs font-medium text-foreground/80">
                     Cloudflare API Token
                   </Label>
                   <a
@@ -865,7 +865,7 @@ export function SettingsPage(): React.JSX.Element {
                     }
                     target="_blank"
                     rel="noreferrer"
-                    className="flex items-center gap-1 text-[11px] text-indigo-400 hover:text-indigo-300 transition-colors"
+                    className="flex items-center gap-1 text-[11px] text-indigo-600 dark:text-indigo-400 hover:text-indigo-500 dark:hover:text-indigo-300 transition-colors"
                   >
                     <span>Create token in Dashboard</span>
                     <ExternalLink className="h-3 w-3" />
@@ -886,39 +886,43 @@ export function SettingsPage(): React.JSX.Element {
                   <button
                     type="button"
                     onClick={() => setShowToken(!showToken)}
-                    className="absolute right-2.5 top-1/2 -translate-y-1/2 text-neutral-400 hover:text-neutral-200"
+                    className="absolute right-2.5 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
                     aria-label={showToken ? 'Hide token' : 'Show token'}
                   >
                     {showToken ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                   </button>
                 </div>
 
-                <div className="space-y-1.5 text-[11px] leading-normal text-neutral-500">
+                <div className="space-y-1.5 text-[11px] leading-normal text-muted-foreground">
                   <p>The token needs these permissions (the link pre-fills all three):</p>
-                  <ul className="list-disc space-y-0.5 pl-4 font-mono text-neutral-400">
+                  <ul className="list-disc space-y-0.5 pl-4 font-mono text-muted-foreground">
                     <li>Account → Cloudflare Tunnel → Edit</li>
                     <li>Zone → DNS → Edit</li>
                     <li>Zone → Zone → Read</li>
                   </ul>
                   <p>
                     On the Cloudflare page, choose your account under{' '}
-                    <span className="text-neutral-400">Account Resources</span> and the domains you
-                    will use under <span className="text-neutral-400">Zone Resources</span>.
+                    <span className="text-muted-foreground">Account Resources</span> and the domains
+                    you will use under <span className="text-muted-foreground">Zone Resources</span>
+                    .
                   </p>
                 </div>
               </div>
 
               {/* Account Dropdown if multiple accounts found */}
               {availableAccounts.length > 1 && (
-                <div className="space-y-2 rounded-lg border border-neutral-800 bg-neutral-900/60 p-3">
-                  <Label htmlFor="account-select" className="text-xs font-medium text-neutral-300">
+                <div className="space-y-2 rounded-lg border border-border bg-muted/60 p-3">
+                  <Label
+                    htmlFor="account-select"
+                    className="text-xs font-medium text-foreground/80"
+                  >
                     Select Account ({availableAccounts.length} accessible)
                   </Label>
                   <select
                     id="account-select"
                     value={selectedAccountId}
                     onChange={(e) => setSelectedAccountId(e.target.value)}
-                    className="w-full rounded-md border border-neutral-800 bg-neutral-950 px-3 py-2 text-xs text-neutral-200 focus:outline-none focus:ring-1 focus:ring-primary"
+                    className="w-full rounded-md border border-border bg-card px-3 py-2 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
                   >
                     {availableAccounts.map((acc) => (
                       <option key={acc.id} value={acc.id}>
@@ -938,7 +942,7 @@ export function SettingsPage(): React.JSX.Element {
               )}
 
               {/* Modal Actions */}
-              <div className="flex items-center justify-end gap-2 pt-2 border-t border-neutral-800">
+              <div className="flex items-center justify-end gap-2 pt-2 border-t border-border">
                 <Button
                   type="button"
                   variant="ghost"

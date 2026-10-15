@@ -87,7 +87,7 @@ export function QuickSharePage(): React.JSX.Element {
       </div>
 
       {activeTunnel ? (
-        <Card className="border-primary/40 bg-neutral-950/50 shadow-md">
+        <Card className="border-primary/40 bg-card/50 shadow-md">
           <CardHeader className="pb-3">
             <div className="flex flex-wrap items-center justify-between gap-2">
               <div className="flex items-center gap-2">
@@ -124,22 +124,22 @@ export function QuickSharePage(): React.JSX.Element {
                 </Badge>
               </div>
             </div>
-            <CardDescription className="text-xs text-neutral-400 mt-1">
+            <CardDescription className="text-xs text-muted-foreground mt-1">
               Forwarding traffic to:{' '}
-              <span className="font-mono text-neutral-200">{activeTunnel.quick?.target}</span>
+              <span className="font-mono text-foreground">{activeTunnel.quick?.target}</span>
             </CardDescription>
           </CardHeader>
 
           <CardContent className="space-y-4">
-            <div className="rounded-lg border border-neutral-800 bg-neutral-900/60 p-4">
-              <div className="text-xs text-neutral-400 mb-1">Public URL:</div>
+            <div className="rounded-lg border border-border bg-muted/60 p-4">
+              <div className="text-xs text-muted-foreground mb-1">Public URL:</div>
               {activeStatus?.state === 'connected' && activeStatus.quickUrl ? (
                 <div className="flex flex-wrap items-center justify-between gap-3">
                   <a
                     href={activeStatus.quickUrl}
                     target="_blank"
                     rel="noreferrer"
-                    className="font-mono text-sm font-medium text-emerald-400 hover:underline break-all"
+                    className="font-mono text-sm font-medium text-emerald-600 dark:text-emerald-400 hover:underline break-all"
                   >
                     {activeStatus.quickUrl}
                   </a>
@@ -152,7 +152,7 @@ export function QuickSharePage(): React.JSX.Element {
                     >
                       {copiedUrl === activeStatus.quickUrl ? (
                         <>
-                          <Check className="h-3.5 w-3.5 text-emerald-400" />
+                          <Check className="h-3.5 w-3.5 text-emerald-600 dark:text-emerald-400" />
                           Copied
                         </>
                       ) : (
@@ -174,7 +174,7 @@ export function QuickSharePage(): React.JSX.Element {
                   </div>
                 </div>
               ) : (
-                <div className="flex items-center gap-2 text-xs text-neutral-400 py-1">
+                <div className="flex items-center gap-2 text-xs text-muted-foreground py-1">
                   <Loader2 className="h-4 w-4 animate-spin text-primary" />
                   <span>Obtaining public URL from Cloudflare...</span>
                 </div>
@@ -182,24 +182,24 @@ export function QuickSharePage(): React.JSX.Element {
             </div>
 
             {activeStatus?.state === 'connected' && (
-              <div className="flex items-center gap-2 text-xs text-neutral-400">
-                <Radio className="h-3.5 w-3.5 text-emerald-400" />
+              <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                <Radio className="h-3.5 w-3.5 text-emerald-600 dark:text-emerald-400" />
                 <span>
                   Active edge connections:{' '}
-                  <strong className="text-neutral-200">{activeStatus.connections}</strong>
+                  <strong className="text-foreground">{activeStatus.connections}</strong>
                 </span>
               </div>
             )}
           </CardContent>
 
-          <CardFooter className="flex flex-wrap items-center justify-between gap-2 border-t border-neutral-800/80 pt-3">
+          <CardFooter className="flex flex-wrap items-center justify-between gap-2 border-t border-border pt-3">
             <Button
               variant="outline"
               size="sm"
               onClick={() =>
                 setSelectedLogsTunnel({ id: activeTunnel.id, name: activeTunnel.name })
               }
-              className="h-8 gap-1.5 text-xs text-neutral-300"
+              className="h-8 gap-1.5 text-xs text-foreground/80"
             >
               <FileText className="h-3.5 w-3.5" />
               View Logs
@@ -229,9 +229,9 @@ export function QuickSharePage(): React.JSX.Element {
               <CardTitle className="text-lg">Share a Local Service</CardTitle>
             </div>
             <CardDescription>
-              Enter a local port (e.g. <span className="font-mono text-neutral-300">3000</span>) or
-              complete URL (e.g.{' '}
-              <span className="font-mono text-neutral-300">http://localhost:5173</span>).
+              Enter a local port (e.g. <span className="font-mono text-foreground/80">3000</span>)
+              or complete URL (e.g.{' '}
+              <span className="font-mono text-foreground/80">http://localhost:5173</span>).
             </CardDescription>
           </CardHeader>
           <CardContent>
@@ -269,7 +269,7 @@ export function QuickSharePage(): React.JSX.Element {
                       key={target}
                       type="button"
                       onClick={() => setTargetInput(target)}
-                      className="cursor-pointer rounded-md border border-neutral-800 bg-neutral-900/60 px-2 py-1 font-mono text-xs text-neutral-300 hover:bg-neutral-800 transition-colors"
+                      className="cursor-pointer rounded-md border border-border bg-muted/60 px-2 py-1 font-mono text-xs text-foreground/80 hover:bg-accent transition-colors"
                     >
                       {target}
                     </button>

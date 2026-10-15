@@ -120,28 +120,28 @@ export function RemoteHostnamesDialog({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-xs">
-      <div className="flex w-full max-w-2xl max-h-[90vh] flex-col rounded-xl border border-neutral-800 bg-neutral-950 p-6 shadow-2xl overflow-hidden">
+      <div className="flex w-full max-w-2xl max-h-[90vh] flex-col rounded-xl border border-border bg-card p-6 shadow-2xl overflow-hidden">
         {/* Header */}
-        <div className="flex items-start justify-between pb-4 border-b border-neutral-800 shrink-0">
+        <div className="flex items-start justify-between pb-4 border-b border-border shrink-0">
           <div className="space-y-1 min-w-0 pr-4">
             <div className="flex items-center gap-2 flex-wrap">
-              <Globe className="h-5 w-5 text-indigo-400 shrink-0" />
-              <h2 className="text-lg font-semibold text-neutral-100 truncate">
+              <Globe className="h-5 w-5 text-indigo-600 dark:text-indigo-400 shrink-0" />
+              <h2 className="text-lg font-semibold text-foreground truncate">
                 Public Hostnames &amp; Routing
               </h2>
               <Badge variant="outline" className="text-xs font-mono">
                 {tunnel.name}
               </Badge>
             </div>
-            <div className="flex items-center gap-2 text-xs text-neutral-400">
+            <div className="flex items-center gap-2 text-xs text-muted-foreground">
               <span>Cloudflare Tunnel ID:</span>
-              <code className="rounded bg-neutral-900 px-1.5 py-0.5 font-mono text-[11px] text-neutral-300">
+              <code className="rounded bg-muted px-1.5 py-0.5 font-mono text-[11px] text-foreground/80">
                 {tunnel.cfTunnelId ?? 'N/A'}
               </code>
             </div>
           </div>
           <Button variant="ghost" size="icon" onClick={onClose} aria-label="Close dialog">
-            <X className="h-5 w-5 text-neutral-400 hover:text-neutral-200" />
+            <X className="h-5 w-5 text-muted-foreground hover:text-foreground" />
           </Button>
         </div>
 
@@ -157,10 +157,10 @@ export function RemoteHostnamesDialog({
           {/* Hostnames List Header & Add Toggle */}
           <div className="flex items-center justify-between">
             <div>
-              <h3 className="text-sm font-medium text-neutral-200">
+              <h3 className="text-sm font-medium text-foreground">
                 Active Routes ({hostnames.length})
               </h3>
-              <p className="text-xs text-neutral-400">
+              <p className="text-xs text-muted-foreground">
                 Incoming traffic is proxied through Cloudflare to your services.
               </p>
             </div>
@@ -188,10 +188,10 @@ export function RemoteHostnamesDialog({
           {isAddOpen && (
             <form
               onSubmit={handleAddHostname}
-              className="rounded-lg border border-neutral-800 bg-neutral-900/60 p-4 space-y-4"
+              className="rounded-lg border border-border bg-muted/60 p-4 space-y-4"
             >
               <div className="flex items-center justify-between">
-                <span className="text-xs font-semibold text-neutral-200 uppercase tracking-wider">
+                <span className="text-xs font-semibold text-foreground uppercase tracking-wider">
                   New Public Hostname
                 </span>
                 {computedHostname && (
@@ -204,15 +204,15 @@ export function RemoteHostnamesDialog({
               <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                 {/* Zone Picker */}
                 <div className="space-y-1.5">
-                  <Label htmlFor="zone-select" className="text-xs text-neutral-300">
+                  <Label htmlFor="zone-select" className="text-xs text-foreground/80">
                     DNS Zone (Domain)
                   </Label>
                   {isZonesLoading ? (
-                    <div className="flex h-9 items-center rounded-md border border-neutral-800 bg-neutral-900 px-3 text-xs text-neutral-500">
+                    <div className="flex h-9 items-center rounded-md border border-border bg-muted px-3 text-xs text-muted-foreground">
                       Loading zones...
                     </div>
                   ) : zones.length === 0 ? (
-                    <div className="text-xs text-amber-400">
+                    <div className="text-xs text-amber-600 dark:text-amber-400">
                       No DNS zones found on your account.
                     </div>
                   ) : (
@@ -220,7 +220,7 @@ export function RemoteHostnamesDialog({
                       id="zone-select"
                       value={activeZoneId}
                       onChange={(e) => setSelectedZoneId(e.target.value)}
-                      className="w-full rounded-md border border-neutral-800 bg-neutral-950 px-3 py-2 text-xs text-neutral-200 focus:outline-none focus:ring-1 focus:ring-primary"
+                      className="w-full rounded-md border border-border bg-card px-3 py-2 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
                     >
                       {zones.map((z) => (
                         <option key={z.id} value={z.id}>
@@ -233,8 +233,9 @@ export function RemoteHostnamesDialog({
 
                 {/* Subdomain Input */}
                 <div className="space-y-1.5">
-                  <Label htmlFor="subdomain" className="text-xs text-neutral-300">
-                    Subdomain <span className="text-neutral-500">(leave blank or @ for apex)</span>
+                  <Label htmlFor="subdomain" className="text-xs text-foreground/80">
+                    Subdomain{' '}
+                    <span className="text-muted-foreground">(leave blank or @ for apex)</span>
                   </Label>
                   <Input
                     id="subdomain"
@@ -248,7 +249,7 @@ export function RemoteHostnamesDialog({
 
               {/* Service URL Input */}
               <div className="space-y-1.5">
-                <Label htmlFor="service-url" className="text-xs text-neutral-300">
+                <Label htmlFor="service-url" className="text-xs text-foreground/80">
                   Target Service URL
                 </Label>
                 <Input
@@ -261,15 +262,15 @@ export function RemoteHostnamesDialog({
               </div>
 
               {/* Options */}
-              <div className="flex items-center justify-between rounded border border-neutral-800/80 bg-neutral-950/50 p-2.5">
+              <div className="flex items-center justify-between rounded border border-border bg-card/50 p-2.5">
                 <div className="space-y-0.5">
                   <Label
                     htmlFor="no-tls"
-                    className="text-xs font-medium text-neutral-300 cursor-pointer"
+                    className="text-xs font-medium text-foreground/80 cursor-pointer"
                   >
                     No TLS Verify
                   </Label>
-                  <p className="text-[11px] text-neutral-500">
+                  <p className="text-[11px] text-muted-foreground">
                     Disables TLS certificate verification on HTTPS origin services.
                   </p>
                 </div>
@@ -306,17 +307,17 @@ export function RemoteHostnamesDialog({
 
           {/* List of Hostnames */}
           {isHostnamesLoading ? (
-            <div className="flex items-center justify-center p-8 text-xs text-neutral-500">
+            <div className="flex items-center justify-center p-8 text-xs text-muted-foreground">
               <Loader2 className="h-4 w-4 animate-spin mr-2" />
               Loading hostnames...
             </div>
           ) : hostnames.length === 0 ? (
-            <div className="flex flex-col items-center justify-center rounded-xl border border-dashed border-neutral-800 p-8 text-center">
-              <div className="mx-auto flex h-10 w-10 items-center justify-center rounded-full bg-neutral-900 mb-3 text-neutral-400">
+            <div className="flex flex-col items-center justify-center rounded-xl border border-dashed border-border p-8 text-center">
+              <div className="mx-auto flex h-10 w-10 items-center justify-center rounded-full bg-muted mb-3 text-muted-foreground">
                 <Globe className="h-5 w-5" />
               </div>
-              <h4 className="text-sm font-medium text-neutral-200">No hostnames configured</h4>
-              <p className="text-xs text-neutral-400 max-w-sm mt-1">
+              <h4 className="text-sm font-medium text-foreground">No hostnames configured</h4>
+              <p className="text-xs text-muted-foreground max-w-sm mt-1">
                 No public hostnames are currently routing to this tunnel. Click{' '}
                 <strong>Add Hostname</strong> above to expose a local service on your Cloudflare
                 domain.
@@ -329,28 +330,30 @@ export function RemoteHostnamesDialog({
                 return (
                   <div
                     key={item.hostname}
-                    className="flex items-center justify-between rounded-lg border border-neutral-800 bg-neutral-900/40 p-3 transition-colors hover:border-neutral-700"
+                    className="flex items-center justify-between rounded-lg border border-border bg-muted/40 p-3 transition-colors hover:border-foreground/30"
                   >
                     <div className="flex items-center gap-3 min-w-0">
-                      <Globe className="h-4 w-4 text-neutral-400 shrink-0" />
+                      <Globe className="h-4 w-4 text-muted-foreground shrink-0" />
                       <div className="flex flex-col min-w-0">
                         <div className="flex items-center gap-2 flex-wrap">
-                          <span className="font-mono text-xs font-semibold text-neutral-100 truncate">
+                          <span className="font-mono text-xs font-semibold text-foreground truncate">
                             {item.hostname}
                           </span>
                           {item.noTlsVerify && (
                             <Badge
                               variant="secondary"
-                              className="text-[10px] px-1.5 py-0 bg-neutral-800 text-neutral-400"
+                              className="text-[10px] px-1.5 py-0 bg-accent text-muted-foreground"
                             >
                               No TLS Verify
                             </Badge>
                           )}
                         </div>
-                        <div className="flex items-center gap-1.5 text-xs text-neutral-400 font-mono mt-0.5 truncate">
-                          <ArrowRight className="h-3 w-3 text-neutral-500 shrink-0" />
+                        <div className="flex items-center gap-1.5 text-xs text-muted-foreground font-mono mt-0.5 truncate">
+                          <ArrowRight className="h-3 w-3 text-muted-foreground shrink-0" />
                           <span className="truncate">{item.service}</span>
-                          {item.path && <span className="text-neutral-500">({item.path})</span>}
+                          {item.path && (
+                            <span className="text-muted-foreground">({item.path})</span>
+                          )}
                         </div>
                       </div>
                     </div>
@@ -360,7 +363,7 @@ export function RemoteHostnamesDialog({
                       size="sm"
                       disabled={isDeleting || removeMutation.isPending}
                       onClick={() => handleDeleteHostname(item.hostname)}
-                      className="h-8 px-2 text-neutral-400 hover:text-destructive hover:bg-destructive/10 shrink-0 ml-2"
+                      className="h-8 px-2 text-muted-foreground hover:text-destructive hover:bg-destructive/10 shrink-0 ml-2"
                       aria-label={`Delete hostname ${item.hostname}`}
                     >
                       {isDeleting ? (
@@ -377,7 +380,7 @@ export function RemoteHostnamesDialog({
         </div>
 
         {/* Footer */}
-        <div className="flex items-center justify-end pt-3 border-t border-neutral-800 shrink-0">
+        <div className="flex items-center justify-end pt-3 border-t border-border shrink-0">
           <Button variant="outline" size="sm" onClick={onClose} className="text-xs">
             Done
           </Button>

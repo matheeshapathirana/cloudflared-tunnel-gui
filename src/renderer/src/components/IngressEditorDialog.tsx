@@ -179,27 +179,27 @@ export function IngressEditorDialog({
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4 backdrop-blur-xs">
-      <div className="flex h-[85vh] w-full max-w-4xl flex-col rounded-xl border border-neutral-800 bg-neutral-950 shadow-2xl">
+      <div className="flex h-[85vh] w-full max-w-4xl flex-col rounded-xl border border-border bg-card shadow-2xl">
         {/* Header */}
-        <div className="flex items-center justify-between border-b border-neutral-800 px-6 py-4">
+        <div className="flex items-center justify-between border-b border-border px-6 py-4">
           <div>
             <div className="flex items-center gap-2">
-              <h2 className="text-lg font-semibold text-neutral-100">Ingress Rules</h2>
-              <span className="rounded bg-neutral-800 px-2 py-0.5 text-xs text-neutral-300 font-mono">
+              <h2 className="text-lg font-semibold text-foreground">Ingress Rules</h2>
+              <span className="rounded bg-accent px-2 py-0.5 text-xs text-foreground/80 font-mono">
                 {tunnel.name}
               </span>
             </div>
-            <p className="text-xs text-neutral-400 font-mono mt-0.5 truncate max-w-xl">
+            <p className="text-xs text-muted-foreground font-mono mt-0.5 truncate max-w-xl">
               {configPath}
             </p>
           </div>
           <Button variant="ghost" size="icon" onClick={onClose} aria-label="Close dialog">
-            <X className="h-5 w-5 text-neutral-400 hover:text-neutral-200" />
+            <X className="h-5 w-5 text-muted-foreground hover:text-foreground" />
           </Button>
         </div>
 
         {/* Tab Navigation */}
-        <div className="flex items-center gap-2 border-b border-neutral-800 bg-neutral-900/40 px-6 py-2">
+        <div className="flex items-center gap-2 border-b border-border bg-muted/40 px-6 py-2">
           <Button
             variant={activeTab === 'rules' ? 'secondary' : 'ghost'}
             size="sm"
@@ -232,14 +232,14 @@ export function IngressEditorDialog({
         {/* Body Content */}
         <div className="flex-1 overflow-y-auto p-6">
           {isConfigLoading ? (
-            <div className="flex h-full items-center justify-center text-sm text-neutral-400">
+            <div className="flex h-full items-center justify-center text-sm text-muted-foreground">
               <Loader2 className="mr-2 h-4 w-4 animate-spin" />
               Loading configuration...
             </div>
           ) : activeTab === 'rules' ? (
             <div className="space-y-4">
               <div className="flex items-center justify-between">
-                <p className="text-xs text-neutral-400">
+                <p className="text-xs text-muted-foreground">
                   Requests are matched from top to bottom. The final catch-all rule matches all
                   remaining traffic.
                 </p>
@@ -261,13 +261,11 @@ export function IngressEditorDialog({
                     <div
                       key={idx}
                       className={`flex flex-col gap-2 rounded-lg border p-3 ${
-                        isCatchAll
-                          ? 'border-neutral-800/80 bg-neutral-900/30'
-                          : 'border-neutral-800 bg-neutral-900/70'
+                        isCatchAll ? 'border-border bg-muted/30' : 'border-border bg-muted/70'
                       }`}
                     >
                       <div className="flex items-center justify-between">
-                        <span className="text-xs font-semibold text-neutral-400">
+                        <span className="text-xs font-semibold text-muted-foreground">
                           {isCatchAll ? 'Catch-all Rule (Final)' : `Rule #${idx + 1}`}
                         </span>
                         {!isCatchAll && (
@@ -277,7 +275,7 @@ export function IngressEditorDialog({
                               size="icon"
                               disabled={idx === 0}
                               onClick={() => handleMoveRule(idx, 'up')}
-                              className="h-6 w-6 text-neutral-400 hover:text-neutral-200"
+                              className="h-6 w-6 text-muted-foreground hover:text-foreground"
                               aria-label="Move rule up"
                             >
                               <ArrowUp className="h-3 w-3" />
@@ -287,7 +285,7 @@ export function IngressEditorDialog({
                               size="icon"
                               disabled={idx >= parsedIngress.length - 2}
                               onClick={() => handleMoveRule(idx, 'down')}
-                              className="h-6 w-6 text-neutral-400 hover:text-neutral-200"
+                              className="h-6 w-6 text-muted-foreground hover:text-foreground"
                               aria-label="Move rule down"
                             >
                               <ArrowDown className="h-3 w-3" />
@@ -309,7 +307,7 @@ export function IngressEditorDialog({
                         {!isCatchAll ? (
                           <>
                             <div>
-                              <label className="text-[10px] uppercase font-bold text-neutral-500 mb-1 block">
+                              <label className="text-[10px] uppercase font-bold text-muted-foreground mb-1 block">
                                 Public Hostname
                               </label>
                               <Input
@@ -320,7 +318,7 @@ export function IngressEditorDialog({
                               />
                             </div>
                             <div>
-                              <label className="text-[10px] uppercase font-bold text-neutral-500 mb-1 block">
+                              <label className="text-[10px] uppercase font-bold text-muted-foreground mb-1 block">
                                 Path Pattern (Optional)
                               </label>
                               <Input
@@ -332,12 +330,12 @@ export function IngressEditorDialog({
                             </div>
                           </>
                         ) : (
-                          <div className="md:col-span-2 flex items-center text-xs text-neutral-400 italic">
+                          <div className="md:col-span-2 flex items-center text-xs text-muted-foreground italic">
                             Matches all unspecified hostnames and paths.
                           </div>
                         )}
                         <div>
-                          <label className="text-[10px] uppercase font-bold text-neutral-500 mb-1 block">
+                          <label className="text-[10px] uppercase font-bold text-muted-foreground mb-1 block">
                             Service URL
                           </label>
                           <Input
@@ -356,7 +354,7 @@ export function IngressEditorDialog({
           ) : activeTab === 'yaml' ? (
             <div className="flex h-full flex-col gap-3">
               <div className="flex items-center justify-between">
-                <span className="text-xs text-neutral-400">
+                <span className="text-xs text-muted-foreground">
                   Directly edit config YAML. Comments and key order are preserved.
                 </span>
                 <Button
@@ -375,12 +373,12 @@ export function IngressEditorDialog({
                 <div
                   className={`flex items-start gap-2 rounded-lg border p-2.5 text-xs ${
                     validationResult.valid
-                      ? 'border-emerald-800/80 bg-emerald-950/20 text-emerald-300'
+                      ? 'border-emerald-800/80 bg-emerald-500/10 text-emerald-700 dark:text-emerald-300'
                       : 'border-destructive/80 bg-destructive/10 text-destructive'
                   }`}
                 >
                   {validationResult.valid ? (
-                    <CheckCircle2 className="h-4 w-4 shrink-0 text-emerald-400 mt-0.5" />
+                    <CheckCircle2 className="h-4 w-4 shrink-0 text-emerald-600 dark:text-emerald-400 mt-0.5" />
                   ) : (
                     <AlertCircle className="h-4 w-4 shrink-0 text-destructive mt-0.5" />
                   )}
@@ -401,20 +399,22 @@ export function IngressEditorDialog({
                   setUserEditedYaml(e.target.value)
                   setValidationResult(null)
                 }}
-                className="flex-1 w-full rounded-lg border border-neutral-800 bg-neutral-950 p-4 font-mono text-xs text-neutral-200 outline-none focus:border-neutral-700 resize-none leading-relaxed"
+                className="flex-1 w-full rounded-lg border border-border bg-card p-4 font-mono text-xs text-foreground outline-none focus:border-foreground/40 resize-none leading-relaxed"
                 rows={16}
                 spellCheck={false}
               />
             </div>
           ) : (
             <div className="space-y-4">
-              <p className="text-xs text-neutral-400">
+              <p className="text-xs text-muted-foreground">
                 Automatic backups created prior to saves. The last 5 versions are retained.
               </p>
               {isBackupsLoading ? (
-                <div className="py-8 text-center text-xs text-neutral-500">Loading backups...</div>
+                <div className="py-8 text-center text-xs text-muted-foreground">
+                  Loading backups...
+                </div>
               ) : backups.length === 0 ? (
-                <div className="py-8 text-center text-xs text-neutral-500">
+                <div className="py-8 text-center text-xs text-muted-foreground">
                   No backups recorded yet for this configuration.
                 </div>
               ) : (
@@ -422,11 +422,11 @@ export function IngressEditorDialog({
                   {backups.map((b) => (
                     <div
                       key={b.fileName}
-                      className="flex items-center justify-between rounded-lg border border-neutral-800 bg-neutral-900/60 p-3"
+                      className="flex items-center justify-between rounded-lg border border-border bg-muted/60 p-3"
                     >
                       <div>
-                        <div className="font-mono text-xs text-neutral-200">{b.fileName}</div>
-                        <div className="text-[11px] text-neutral-500 mt-0.5">
+                        <div className="font-mono text-xs text-foreground">{b.fileName}</div>
+                        <div className="text-[11px] text-muted-foreground mt-0.5">
                           {new Date(b.timestamp).toLocaleString()} &bull;{' '}
                           {(b.size / 1024).toFixed(1)} KB
                         </div>
@@ -450,10 +450,10 @@ export function IngressEditorDialog({
         </div>
 
         {/* Footer */}
-        <div className="flex items-center justify-between border-t border-neutral-800 px-6 py-3.5 bg-neutral-950">
-          <div className="text-xs text-neutral-400">
+        <div className="flex items-center justify-between border-t border-border px-6 py-3.5 bg-card">
+          <div className="text-xs text-muted-foreground">
             {isTunnelRunning && (
-              <span className="text-amber-400 font-medium">
+              <span className="text-amber-600 dark:text-amber-400 font-medium">
                 &bull; Saving will automatically restart the live tunnel.
               </span>
             )}
@@ -471,7 +471,7 @@ export function IngressEditorDialog({
               {saveMutation.isPending ? (
                 <Loader2 className="h-3.5 w-3.5 animate-spin" />
               ) : savedSuccess ? (
-                <CheckCircle2 className="h-3.5 w-3.5 text-emerald-400" />
+                <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600 dark:text-emerald-400" />
               ) : (
                 <Save className="h-3.5 w-3.5" />
               )}
