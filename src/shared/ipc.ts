@@ -14,7 +14,8 @@ import {
   CloudflaredServiceSchema,
   BinaryReleaseSchema,
   DownloadProgressPayloadSchema,
-  AppPageSchema
+  AppPageSchema,
+  UpdateStateSchema
 } from './schemas'
 
 const cmd = <I extends z.ZodType, O extends z.ZodType>(
@@ -121,7 +122,10 @@ export const commands = {
   ),
   'app.getSettings': cmd(z.void(), SettingsViewSchema),
   'app.setSettings': cmd(SettingsPatchSchema, SettingsViewSchema),
-  'app.quit': cmd(z.void(), z.void())
+  'app.quit': cmd(z.void(), z.void()),
+  'update.getState': cmd(z.void(), UpdateStateSchema),
+  'update.check': cmd(z.void(), UpdateStateSchema),
+  'update.install': cmd(z.void(), z.void())
 } as const
 
 export type CommandName = keyof typeof commands
@@ -133,7 +137,8 @@ export const events = {
   'tunnel:status': z.object({ id: z.string(), status: TunnelStatusSchema }),
   'tunnel:log': z.object({ id: z.string(), line: z.string() }),
   'binary:downloadProgress': DownloadProgressPayloadSchema,
-  'app:navigate': AppPageSchema
+  'app:navigate': AppPageSchema,
+  'update:state': UpdateStateSchema
 } as const
 
 export type EventName = keyof typeof events

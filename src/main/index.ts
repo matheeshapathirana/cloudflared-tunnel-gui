@@ -1,6 +1,7 @@
 import { app, BrowserWindow, ipcMain, nativeTheme } from 'electron'
 import { join } from 'node:path'
 import { electronApp, optimizer } from '@electron-toolkit/utils'
+import { autoUpdater } from 'electron-updater'
 import { EVENT_CHANNEL } from '@shared/ipc'
 import { resourcePath } from './assets'
 import { createMainWindow, isTrustedSender } from './window'
@@ -16,6 +17,7 @@ import { SecretStore } from './security/SecretStore'
 import { CloudflareApi } from './api/CloudflareApi'
 import { ServiceManager } from './services/ServiceManager'
 import { ImportService } from './import/ImportService'
+import { UpdateManager } from './update/UpdateManager'
 
 // Set userData path before app ready
 app.setPath('userData', join(app.getPath('appData'), 'CloudflaredTunnelGUI'))
@@ -83,6 +85,16 @@ if (!gotTheLock) {
     secretStore
   })
 
+  const updateManager = new UpdateManager({
+    updater: autoUpdater,
+    currentVersion: app.getVersion(),
+    isPackaged: app.isPackaged,
+    getAutoCheck: () => store.get().updates.autoCheck,
+    beforeInstall: () => {
+      isQuitting = true
+    }
+  })
+
   const router = new IpcRouter()
   registerCommands(router, {
     registry,
@@ -95,6 +107,7 @@ if (!gotTheLock) {
     serviceManager,
     importService,
     appVersion: app.getVersion(),
+    updateManager,
     quitApp: () => {
       isQuitting = true
       app.quit()
@@ -124,6 +137,13 @@ if (!gotTheLock) {
     trayController?.updateMenu(payload, supervisor.getAllStatuses())
   })
 
+  updateManager.on('state', (payload) => {
+    mainWindow?.webContents.send(EVENT_CHANNEL, {
+      name: 'update:state',
+      payload
+    })
+  })
+
   supervisor.on('status', ({ id, status }) => {
     mainWindow?.webContents.send(EVENT_CHANNEL, {
       name: 'tunnel:status',
@@ -148,6 +168,7 @@ if (!gotTheLock) {
     })
 
     await store.load()
+    updateManager.start()
     // 'system' follows the Windows app-mode setting live; light/dark override it
     nativeTheme.themeSource = store.get().theme
     await supervisor.cleanupOrphans()
@@ -246,6 +267,7 @@ if (!gotTheLock) {
 
   app.on('before-quit', () => {
     isQuitting = true
+    updateManager.stop()
     void supervisor.stopAll()
     trayController?.destroy()
   })

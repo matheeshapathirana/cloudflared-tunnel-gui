@@ -1,8 +1,8 @@
 import path from 'node:path'
-import { describe, it, expect, vi } from 'vitest'
+import { describe, it, expect, vi, type Mock } from 'vitest'
 import { IpcRouter } from './IpcRouter'
 import { registerCommands, normalizeTarget } from './registerCommands'
-import type { Tunnel, BinaryStatus, AppState, BackupInfo } from '@shared/schemas'
+import type { Tunnel, BinaryStatus, AppState, BackupInfo, UpdateState } from '@shared/schemas'
 import { defaultAppState } from '@shared/schemas'
 import { AppErrorException } from '@shared/result'
 import type { TunnelRegistry } from '../tunnels/TunnelRegistry'
@@ -12,6 +12,7 @@ import type { ProcessSupervisor } from '../process/ProcessSupervisor'
 import type { LocalConfigStore } from '../config/LocalConfigStore'
 import type { ISecretStore } from '../security/SecretStore'
 import type { ICloudflareApi } from '../api/CloudflareApi'
+import type { UpdateManager } from '../update/UpdateManager'
 
 describe('registerCommands', () => {
   const sampleTunnel: Tunnel = {
@@ -78,6 +79,7 @@ describe('registerCommands', () => {
     secretStore?: Partial<ISecretStore>
     cloudflareApi?: Partial<ICloudflareApi>
     initialState?: Partial<AppState>
+    updateManager?: Pick<UpdateManager, 'getState' | 'check' | 'install'>
   }): SetupResult {
     const router = new IpcRouter()
     let currentState: AppState = {
@@ -247,6 +249,7 @@ describe('registerCommands', () => {
       importService:
         mockImportService as unknown as import('../import/ImportService').ImportService,
       appVersion: '1.2.3',
+      updateManager: customMocks?.updateManager,
       quitApp,
       setLoginSettings,
       applyTheme,
@@ -1258,6 +1261,88 @@ describe('registerCommands', () => {
         openAtLogin: true,
         args: ['--hidden']
       })
+    })
+  })
+
+  describe('update commands', () => {
+    const readyState: UpdateState = {
+      currentVersion: '1.2.3',
+      status: { state: 'ready', version: '1.3.0' }
+    }
+    const checkedState: UpdateState = {
+      currentVersion: '1.2.3',
+      status: { state: 'idle', checkedAt: 1000 }
+    }
+
+    function makeUpdateManager(): {
+      getState: Mock<() => UpdateState>
+      check: Mock<() => Promise<UpdateState>>
+      install: Mock<() => void>
+    } {
+      return {
+        getState: vi.fn<() => UpdateState>(() => readyState),
+        check: vi.fn<() => Promise<UpdateState>>(async () => checkedState),
+        install: vi.fn<() => void>()
+      }
+    }
+
+    it('update.getState returns the manager state', async () => {
+      const updateManager = makeUpdateManager()
+      const { router } = setup({ updateManager })
+      const res = await router.dispatch('update.getState', undefined)
+      expect(res).toEqual({ ok: true, data: readyState })
+    })
+
+    it('update.check returns the result of updateManager.check', async () => {
+      const updateManager = makeUpdateManager()
+      const { router } = setup({ updateManager })
+      const res = await router.dispatch('update.check', undefined)
+      expect(res).toEqual({ ok: true, data: checkedState })
+      expect(updateManager.check).toHaveBeenCalledOnce()
+    })
+
+    it('update.install calls updateManager.install once', async () => {
+      const updateManager = makeUpdateManager()
+      const { router } = setup({ updateManager })
+      const res = await router.dispatch('update.install', undefined)
+      expect(res.ok).toBe(true)
+      expect(updateManager.install).toHaveBeenCalledOnce()
+    })
+
+    it('update.install surfaces a VALIDATION error thrown by the manager', async () => {
+      const updateManager = makeUpdateManager()
+      updateManager.install.mockImplementation(() => {
+        throw new AppErrorException('VALIDATION', 'No update is ready to install.')
+      })
+      const { router } = setup({ updateManager })
+      const res = await router.dispatch('update.install', undefined)
+      expect(res.ok).toBe(false)
+      if (!res.ok) expect(res.error.code).toBe('VALIDATION')
+    })
+
+    it('update.getState falls back to an idle state without an updateManager', async () => {
+      const { router } = setup()
+      const res = await router.dispatch('update.getState', undefined)
+      expect(res).toEqual({
+        ok: true,
+        data: { currentVersion: '1.2.3', status: { state: 'idle' } }
+      })
+    })
+
+    it('update.check falls back to an idle state without an updateManager', async () => {
+      const { router } = setup()
+      const res = await router.dispatch('update.check', undefined)
+      expect(res).toEqual({
+        ok: true,
+        data: { currentVersion: '1.2.3', status: { state: 'idle' } }
+      })
+    })
+
+    it('update.install rejects with VALIDATION without an updateManager', async () => {
+      const { router } = setup()
+      const res = await router.dispatch('update.install', undefined)
+      expect(res.ok).toBe(false)
+      if (!res.ok) expect(res.error.code).toBe('VALIDATION')
     })
   })
 })

@@ -8,8 +8,10 @@ import type { SecretStore, ISecretStore } from '../security/SecretStore'
 import type { CloudflareApi, ICloudflareApi } from '../api/CloudflareApi'
 import type { ServiceManager } from '../services/ServiceManager'
 import type { ImportService } from '../import/ImportService'
+import type { UpdateManager } from '../update/UpdateManager'
 import type {
   SettingsView,
+  UpdateState,
   Tunnel,
   RemoteHostname,
   DownloadProgressPayload,
@@ -30,6 +32,7 @@ export interface RegisterCommandsDeps {
   serviceManager?: ServiceManager
   importService?: ImportService
   appVersion: string
+  updateManager?: Pick<UpdateManager, 'getState' | 'check' | 'install'>
   quitApp?: () => void
   setLoginSettings?: (settings: { openAtLogin: boolean; args: string[] }) => void
   applyTheme?: (theme: ThemePreference) => void
@@ -827,5 +830,23 @@ export function registerCommands(router: IpcRouter, deps: RegisterCommandsDeps):
     } else {
       app.quit()
     }
+  })
+
+  const idleUpdateState = (): UpdateState => ({
+    currentVersion: deps.appVersion,
+    status: { state: 'idle' }
+  })
+
+  router.register('update.getState', () => deps.updateManager?.getState() ?? idleUpdateState())
+
+  router.register('update.check', async () =>
+    deps.updateManager ? deps.updateManager.check() : idleUpdateState()
+  )
+
+  router.register('update.install', () => {
+    if (!deps.updateManager) {
+      throw new AppErrorException('VALIDATION', 'No update is ready to install.')
+    }
+    deps.updateManager.install()
   })
 }
