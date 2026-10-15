@@ -89,15 +89,23 @@ if (!gotTheLock) {
     updater: autoUpdater,
     currentVersion: app.getVersion(),
     isPackaged: app.isPackaged,
-    getAutoCheck: () => store.get().updates.autoCheck,
-    beforeInstall: () => {
-      isQuitting = true
-    }
+    // isQuitting is deliberately not set up front: electron-updater calls app.quit(), and the
+    // before-quit handler below sets it before any window closes. If the install fails the app keeps
+    // running, and close-to-tray must still work.
+    getAutoCheck: () => store.get().updates.autoCheck
   })
 
   const readyUpdateVersion = (): string | null => {
     const { status } = updateManager.getState()
     return status.state === 'ready' ? status.version : null
+  }
+  // Last ready version pushed to the tray, so the menu is only rebuilt when it actually changes.
+  let trayReadyVersion: string | null = null
+  const syncTrayUpdate = (): void => {
+    const next = readyUpdateVersion()
+    if (next === trayReadyVersion) return
+    trayReadyVersion = next
+    trayController?.setUpdateReady(next)
   }
 
   const router = new IpcRouter()
@@ -147,7 +155,7 @@ if (!gotTheLock) {
       name: 'update:state',
       payload
     })
-    trayController?.setUpdateReady(readyUpdateVersion())
+    syncTrayUpdate()
   })
 
   supervisor.on('status', ({ id, status }) => {
@@ -270,8 +278,9 @@ if (!gotTheLock) {
 
     trayController.init()
     trayController.updateMenu(registry.list(), supervisor.getAllStatuses())
-    // an update may have become ready before the tray existed
-    trayController.setUpdateReady(readyUpdateVersion())
+    // an update may have become ready before the tray existed: push the current value unconditionally
+    trayReadyVersion = readyUpdateVersion()
+    trayController.setUpdateReady(trayReadyVersion)
 
     app.on('activate', () => {
       if (BrowserWindow.getAllWindows().length === 0) {

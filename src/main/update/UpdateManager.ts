@@ -18,8 +18,8 @@ export interface UpdateManagerDeps {
   currentVersion: string
   isPackaged: boolean
   getAutoCheck: () => boolean
-  /** index.ts sets isQuitting here so the window close handler lets the app exit. */
-  beforeInstall: () => void
+  /** Optional hook that runs right before quitAndInstall. */
+  beforeInstall?: () => void
   initialDelayMs?: number
   intervalMs?: number
 }
@@ -27,6 +27,19 @@ export interface UpdateManagerDeps {
 const DEFAULT_INITIAL_DELAY_MS = 30_000
 const DEFAULT_INTERVAL_MS = 6 * 60 * 60 * 1000
 const MAX_MESSAGE_LENGTH = 160
+
+/**
+ * With autoDownload on, electron-updater's checkForUpdates() resolves with a downloadPromise that
+ * rejects when the download fails (after it has already emitted 'error'). Nothing awaits it, so it
+ * would surface as an unhandled rejection; the 'error' event is what drives our state.
+ */
+function swallowDownloadRejection(result: unknown): void {
+  if (typeof result !== 'object' || result === null) return
+  const { downloadPromise } = result as { downloadPromise?: Promise<unknown> | null }
+  if (downloadPromise && typeof downloadPromise.catch === 'function') {
+    downloadPromise.catch(() => undefined)
+  }
+}
 
 /** Turns an updater error into a short, user-facing message (no stacks or URLs for known cases). */
 function toErrorMessage(err: unknown): string {
@@ -82,7 +95,7 @@ export class UpdateManager extends EventEmitter {
 
     this.inFlight = this.deps.updater
       .checkForUpdates()
-      .then(() => undefined)
+      .then(swallowDownloadRejection)
       .catch((err: unknown) => this.setStatus({ state: 'error', message: toErrorMessage(err) }))
       .finally(() => {
         this.inFlight = null
@@ -97,8 +110,13 @@ export class UpdateManager extends EventEmitter {
     }
     if (this.installing) return
     this.installing = true
-    this.deps.beforeInstall()
-    this.deps.updater.quitAndInstall(false, true)
+    try {
+      this.deps.beforeInstall?.()
+      this.deps.updater.quitAndInstall(false, true)
+    } catch (err) {
+      this.installing = false
+      throw err
+    }
   }
 
   private subscribe(): void {
@@ -126,9 +144,11 @@ export class UpdateManager extends EventEmitter {
     updater.on('update-not-available', () =>
       this.setStatus({ state: 'idle', checkedAt: Date.now() })
     )
-    updater.on('error', (err: Error) =>
+    updater.on('error', (err: Error) => {
+      // quitAndInstall never throws on failure: it emits 'error' and does not quit, so allow a retry.
+      this.installing = false
       this.setStatus({ state: 'error', message: toErrorMessage(err) })
-    )
+    })
   }
 
   private schedule(): void {

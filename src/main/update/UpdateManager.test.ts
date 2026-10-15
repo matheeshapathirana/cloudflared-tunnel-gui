@@ -230,6 +230,118 @@ describe('UpdateManager', () => {
     manager.stop()
   })
 
+  it('check() while an earlier check is still in flight (status idle) is skipped by the in-flight guard', async () => {
+    let resolveCheck: (v: unknown) => void = () => undefined
+    updater.checkForUpdates.mockImplementationOnce(
+      () => new Promise((resolve) => (resolveCheck = resolve))
+    )
+    const manager = create()
+    manager.start()
+
+    const first = manager.check()
+    // No 'checking-for-update' event yet, so only the in-flight guard can stop this one.
+    expect(manager.getState().status).toEqual({ state: 'idle' })
+    await manager.check()
+    expect(updater.checkForUpdates).toHaveBeenCalledTimes(1)
+
+    resolveCheck(undefined)
+    await first
+    manager.stop()
+  })
+
+  it('check() while ready is skipped by the status guard and leaves the state unchanged', async () => {
+    const manager = create()
+    manager.start()
+    updater.emit('update-downloaded', { version: '1.1.0' })
+    const before = manager.getState()
+
+    const state = await manager.check()
+    expect(updater.checkForUpdates).not.toHaveBeenCalled()
+    expect(state).toEqual(before)
+    expect(manager.getState()).toEqual(before)
+    manager.stop()
+  })
+
+  it('a failed background download does not leave an unhandled rejection', async () => {
+    vi.useRealTimers() // a real macrotask turn is needed for Node to report unhandled rejections
+    const downloadPromise = Promise.reject(new Error('net::ERR_INTERNET_DISCONNECTED'))
+    updater.checkForUpdates.mockImplementationOnce(async () => {
+      updater.emit('update-available', { version: '1.1.0' })
+      updater.emit('error', new Error('net::ERR_INTERNET_DISCONNECTED'))
+      return { updateInfo: { version: '1.1.0' }, downloadPromise }
+    })
+    const manager = create()
+    manager.start()
+
+    const state = await manager.check()
+    // Let any (missing) unhandled-rejection handling surface before the test ends.
+    await new Promise<void>((resolve) => setImmediate(resolve))
+
+    expect(state.status).toEqual({ state: 'error', message: 'net::ERR_INTERNET_DISCONNECTED' })
+    manager.stop()
+  })
+
+  it('install() works again after a failed install (error event) and a re-downloaded update', () => {
+    const manager = create()
+    manager.start()
+    updater.emit('update-downloaded', { version: '1.1.0' })
+
+    manager.install()
+    expect(updater.quitAndInstall).toHaveBeenCalledTimes(1)
+
+    // electron-updater reports a failed quitAndInstall through 'error' and does not quit.
+    updater.emit('error', new Error('quitAndInstall failed'))
+    expect(manager.getState().status.state).toBe('error')
+    updater.emit('update-downloaded', { version: '1.1.0' })
+
+    manager.install()
+    expect(updater.quitAndInstall).toHaveBeenCalledTimes(2)
+    manager.stop()
+  })
+
+  it('install() rethrows when quitAndInstall throws, and a later install() still works', () => {
+    const manager = create()
+    manager.start()
+    updater.emit('update-downloaded', { version: '1.1.0' })
+    updater.quitAndInstall.mockImplementationOnce(() => {
+      throw new Error('spawn failed')
+    })
+
+    expect(() => manager.install()).toThrow('spawn failed')
+
+    // Still ready (no error event arrived), so a retry must reach quitAndInstall again.
+    manager.install()
+    expect(updater.quitAndInstall).toHaveBeenCalledTimes(2)
+    manager.stop()
+  })
+
+  it('install() rethrows when beforeInstall throws, and does not quit', () => {
+    const manager = create()
+    manager.start()
+    updater.emit('update-downloaded', { version: '1.1.0' })
+    beforeInstall.mockImplementationOnce(() => {
+      throw new Error('hook failed')
+    })
+
+    expect(() => manager.install()).toThrow('hook failed')
+    expect(updater.quitAndInstall).not.toHaveBeenCalled()
+
+    manager.install()
+    expect(updater.quitAndInstall).toHaveBeenCalledTimes(1)
+    manager.stop()
+  })
+
+  it('install() works when beforeInstall is omitted', () => {
+    const manager = create({ beforeInstall: undefined })
+    manager.start()
+    updater.emit('update-downloaded', { version: '1.1.0' })
+
+    expect(() => manager.install()).not.toThrow()
+    expect(updater.quitAndInstall).toHaveBeenCalledTimes(1)
+    expect(updater.quitAndInstall).toHaveBeenCalledWith(false, true)
+    manager.stop()
+  })
+
   it('check() can run again after a check has settled', async () => {
     const manager = create()
     manager.start()
