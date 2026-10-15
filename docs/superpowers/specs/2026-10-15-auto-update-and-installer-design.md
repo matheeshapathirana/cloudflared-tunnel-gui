@@ -76,7 +76,7 @@ It also exposes `currentVersion` (`app.getVersion()`) and the `autoCheck` flag.
 - `install()` is valid only in `ready`. It calls `quitAndInstall(false, true)`: not silent, so the user sees the installer's progress, and force-run the app after install.
 - A single in-flight check at a time. A manual check during `checking` or `downloading` returns the current state.
 
-**Safe restart.** `install()` first sets the app's `isQuitting` flag (the existing mechanism in `src/main/index.ts` that stops close-to-tray from swallowing a quit). It then lets the existing quit path stop supervised tunnels. After the update, the new version launches and auto-start tunnels start as they do on any launch. Installed Windows services are separate processes and keep running throughout.
+**Safe restart.** `install()` calls `quitAndInstall`, which makes electron-updater call `app.quit()`. The existing `before-quit` handler in `src/main/index.ts` sets `isQuitting` before Electron closes any window, so close-to-tray cannot swallow the quit, and the same handler stops supervised tunnels. `isQuitting` is deliberately not set up front: `quitAndInstall` signals failure with an `error` event and does not quit, and setting the flag early would leave close-to-tray disabled for the rest of the session. `install()` resets its re-entrancy flag on such an error so the user can retry. After the update, the new version launches and auto-start tunnels start as they do on any launch. Installed Windows services are separate processes and keep running throughout.
 
 The manager is constructed in `src/main/index.ts` with the real `autoUpdater`, and `UpdateManager.stop()` clears its timer on quit.
 
