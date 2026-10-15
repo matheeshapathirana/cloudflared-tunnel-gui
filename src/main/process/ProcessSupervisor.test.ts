@@ -175,6 +175,41 @@ describe('ProcessSupervisor', () => {
     await supervisor.stop(sampleQuickTunnel.id)
   })
 
+  it('still restarts a process that exits while start() is saving its pid', async () => {
+    // cloudflared dying immediately (e.g. a bad token) must not lose the exit event
+    let callCount = 0
+    const mockSpawn = vi.fn(() => {
+      callCount++
+      return createMockChild(3000 + callCount)
+    })
+    const realUpdate = store.update.bind(store)
+    const slowUpdate = vi.spyOn(store, 'update').mockImplementationOnce(async (mutator) => {
+      await new Promise((r) => setTimeout(r, 80))
+      return realUpdate(mutator)
+    })
+
+    const supervisor = new ProcessSupervisor({
+      binaryManager: fakeBinary,
+      store,
+      appDataPath: tmpDir,
+      spawn: mockSpawn as unknown as typeof import('node:child_process').spawn,
+      getFreePort: vi.fn(async () => 40020),
+      killProcess: vi.fn(async () => {}),
+      backoffDelays: [10, 10, 10, 10, 10]
+    })
+
+    const starting = supervisor.start(sampleQuickTunnel)
+    await vi.waitFor(() => expect(mockSpawn).toHaveBeenCalledTimes(1))
+    // exits while the pid is still being persisted
+    const first = mockSpawn.mock.results[0].value as ReturnType<typeof createMockChild>
+    first.emitClose(1)
+    await starting
+
+    await vi.waitFor(() => expect(callCount).toBe(2), { timeout: 2000, interval: 5 })
+    slowUpdate.mockRestore()
+    await supervisor.stopAll()
+  })
+
   it('handles crash and restarts with backoff up to crashed state on 5 failures', async () => {
     let callCount = 0
     const mockSpawn = vi.fn(() => {
@@ -199,8 +234,8 @@ describe('ProcessSupervisor', () => {
       const activeChild = mockSpawn.mock.results[i - 1].value as ReturnType<typeof createMockChild>
       activeChild.emitClose(1)
       if (i < 5) {
-        await new Promise((r) => setTimeout(r, 60))
-        expect(callCount).toBe(i + 1)
+        // wait for the backoff timer instead of guessing a delay (flaky under parallel load)
+        await vi.waitFor(() => expect(callCount).toBe(i + 1), { timeout: 3000, interval: 5 })
       }
     }
 

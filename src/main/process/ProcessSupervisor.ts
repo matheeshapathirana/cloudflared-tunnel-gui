@@ -239,12 +239,21 @@ export class ProcessSupervisor extends EventEmitter {
     this.instances.set(tunnel.id, instance)
     this.setStatus(tunnel.id, { state: 'starting' })
 
+    // Listen for exit BEFORE any await: 'close' is not buffered, so a process that dies while we
+    // persist its pid (e.g. a bad token) would otherwise never be restarted or marked crashed.
+    let exitedEarly = false
+    child.once('close', () => {
+      exitedEarly = true
+    })
+    this.attachStreams(tunnel.id, child)
+
     await this.deps.store.update((s) => {
       s.runningPids[tunnel.id] = child.pid!
     })
 
-    this.attachStreams(tunnel.id, child)
-    this.startPoller(tunnel.id)
+    if (!exitedEarly) {
+      this.startPoller(tunnel.id)
+    }
   }
 
   private attachStreams(id: string, child: ChildProcess): void {

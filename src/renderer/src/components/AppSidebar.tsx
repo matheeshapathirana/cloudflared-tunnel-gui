@@ -1,6 +1,7 @@
 import * as React from 'react'
 import { Radio, Zap, Settings } from 'lucide-react'
 import { cn } from '@renderer/lib/utils'
+import { ThemeSwitcher } from './ThemeSwitcher'
 
 export type PageId = 'tunnels' | 'quick-share' | 'settings'
 
@@ -79,8 +80,8 @@ export function AppSidebar({
         </nav>
       </div>
 
-      <div className="hidden lg:block px-3 py-2 text-xs text-muted-foreground border-t border-border/50">
-        Phase 1 Skeleton
+      <div className="border-t border-border/50 pt-3">
+        <ThemeSwitcher variant="compact" />
       </div>
     </aside>
   )

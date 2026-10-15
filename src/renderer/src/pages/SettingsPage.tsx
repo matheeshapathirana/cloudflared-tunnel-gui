@@ -55,6 +55,7 @@ import {
 } from '@renderer/components/ui/card'
 import { PageContainer } from '@renderer/components/PageContainer'
 import { Badge } from '@renderer/components/ui/badge'
+import { ThemeSwitcher } from '@renderer/components/ThemeSwitcher'
 import type { Account } from '@shared/schemas'
 
 function formatSource(source: string): string {
@@ -586,6 +587,23 @@ export function SettingsPage(): React.JSX.Element {
               Provide an absolute path to cloudflared.exe if you want to bypass auto-detection.
             </p>
           </div>
+        </CardContent>
+      </Card>
+
+      {/* Appearance Card */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base">Appearance</CardTitle>
+          <CardDescription className="text-xs">
+            Choose a light or dark theme, or follow Windows.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="flex flex-col gap-3">
+          <ThemeSwitcher variant="labelled" />
+          <p className="text-xs text-muted-foreground">
+            <strong className="font-medium text-foreground">System</strong> follows the Windows app
+            mode setting and updates as soon as you change it there.
+          </p>
         </CardContent>
       </Card>
 

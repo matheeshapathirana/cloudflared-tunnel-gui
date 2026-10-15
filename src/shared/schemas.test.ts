@@ -20,6 +20,21 @@ describe('schemas', () => {
     it('returns a valid AppState', () => {
       const state = defaultAppState()
       expect(AppStateSchema.safeParse(state).success).toBe(true)
+      expect(state.theme).toBe('system')
+    })
+
+    it('still loads a state file saved before the theme setting existed', () => {
+      const legacy: Record<string, unknown> = { ...defaultAppState() }
+      delete legacy.theme
+      const res = AppStateSchema.safeParse(legacy)
+      expect(res.success).toBe(true)
+      expect(res.success && res.data.theme).toBe('system')
+    })
+
+    it('rejects an unknown theme', () => {
+      expect(AppStateSchema.safeParse({ ...defaultAppState(), theme: 'solarized' }).success).toBe(
+        false
+      )
     })
   })
 
@@ -190,6 +205,7 @@ describe('schemas', () => {
       const res = SettingsViewSchema.safeParse({
         startup: { launchAtLogin: false, startHidden: true },
         binary: { overridePath: 'C:\\cloudflared.exe' },
+        theme: 'dark',
         appVersion: '1.0.0'
       })
       expect(res.success).toBe(true)
@@ -200,6 +216,8 @@ describe('schemas', () => {
         startup: { launchAtLogin: true }
       })
       expect(res.success).toBe(true)
+      expect(SettingsPatchSchema.safeParse({ theme: 'light' }).success).toBe(true)
+      expect(SettingsPatchSchema.safeParse({ theme: 'neon' }).success).toBe(false)
     })
   })
 

@@ -1,4 +1,4 @@
-import { BrowserWindow, shell, type IpcMainInvokeEvent } from 'electron'
+import { BrowserWindow, nativeTheme, shell, type IpcMainInvokeEvent } from 'electron'
 import { join } from 'path'
 import { is } from '@electron-toolkit/utils'
 import icon from '../../resources/icon.png?asset'
@@ -27,6 +27,8 @@ export function createMainWindow(options?: { showOnReady?: boolean }): BrowserWi
     minWidth: 640,
     minHeight: 480,
     show: false,
+    // match the theme background so a dark window doesn't flash white before first paint
+    backgroundColor: nativeTheme.shouldUseDarkColors ? '#09090b' : '#ffffff',
     autoHideMenuBar: true,
     ...(process.platform === 'linux' ? { icon } : {}),
     webPreferences: {

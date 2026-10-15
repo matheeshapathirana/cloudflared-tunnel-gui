@@ -68,6 +68,7 @@ describe('registerCommands', () => {
     mockServiceManager: Record<string, ReturnType<typeof vi.fn>>
     mockImportService: Record<string, ReturnType<typeof vi.fn>>
     setLoginSettings: ReturnType<typeof vi.fn>
+    applyTheme: ReturnType<typeof vi.fn>
     onDownloadProgress: ReturnType<typeof vi.fn>
     quitApp: ReturnType<typeof vi.fn>
   }
@@ -226,6 +227,7 @@ describe('registerCommands', () => {
 
     const quitApp = vi.fn()
     const setLoginSettings = vi.fn()
+    const applyTheme = vi.fn()
     const onDownloadProgress = vi.fn()
 
     registerCommands(router, {
@@ -243,6 +245,7 @@ describe('registerCommands', () => {
       appVersion: '1.2.3',
       quitApp,
       setLoginSettings,
+      applyTheme,
       onDownloadProgress
     })
 
@@ -258,6 +261,7 @@ describe('registerCommands', () => {
       mockServiceManager,
       mockImportService,
       setLoginSettings,
+      applyTheme,
       onDownloadProgress,
       quitApp
     }
@@ -527,6 +531,7 @@ describe('registerCommands', () => {
       data: {
         startup: { launchAtLogin: false, startHidden: true },
         binary: { overridePath: undefined },
+        theme: 'system',
         appVersion: '1.2.3'
       }
     })
@@ -542,9 +547,36 @@ describe('registerCommands', () => {
       data: {
         startup: { launchAtLogin: true, startHidden: true },
         binary: { overridePath: undefined },
+        theme: 'system',
         appVersion: '1.2.3'
       }
     })
+  })
+
+  it('app.setSettings saves the theme and applies it to the native window theme', async () => {
+    const { router, applyTheme, setLoginSettings } = setup()
+    for (const theme of ['dark', 'light', 'system'] as const) {
+      const res = await router.dispatch('app.setSettings', { theme })
+      expect(res).toMatchObject({ ok: true, data: { theme } })
+      expect(applyTheme).toHaveBeenLastCalledWith(theme)
+    }
+    const persisted = await router.dispatch('app.getSettings', undefined)
+    expect(persisted).toMatchObject({ ok: true, data: { theme: 'system' } })
+    // theme changes must not touch the login item
+    expect(setLoginSettings).not.toHaveBeenCalled()
+  })
+
+  it('app.setSettings does not touch the theme when none is sent, and rejects unknown themes', async () => {
+    const { router, applyTheme } = setup()
+    await router.dispatch('app.setSettings', { theme: 'dark' })
+    applyTheme.mockClear()
+    const res = await router.dispatch('app.setSettings', { startup: { startHidden: false } })
+    expect(res).toMatchObject({ ok: true, data: { theme: 'dark' } })
+    expect(applyTheme).not.toHaveBeenCalled()
+
+    const bad = await router.dispatch('app.setSettings', { theme: 'solarized' } as never)
+    expect(bad).toMatchObject({ ok: false, error: { code: 'VALIDATION' } })
+    expect(applyTheme).not.toHaveBeenCalled()
   })
 
   describe('account commands', () => {

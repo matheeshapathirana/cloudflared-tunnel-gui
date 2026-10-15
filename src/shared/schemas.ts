@@ -100,6 +100,10 @@ export const TunnelStatusSchema = z.discriminatedUnion('state', [
 
 export type TunnelStatus = z.infer<typeof TunnelStatusSchema>
 
+export const ThemePreferenceSchema = z.enum(['system', 'light', 'dark'])
+
+export type ThemePreference = z.infer<typeof ThemePreferenceSchema>
+
 export const AppStateSchema = z.object({
   version: z.literal(1),
   tunnels: z.array(TunnelSchema),
@@ -116,6 +120,8 @@ export const AppStateSchema = z.object({
     launchAtLogin: z.boolean(),
     startHidden: z.boolean()
   }),
+  // default keeps state files written before the theme setting existed valid
+  theme: ThemePreferenceSchema.default('system'),
   recentQuickTargets: z.array(z.string()),
   runningPids: z.record(z.string(), z.number())
 })
@@ -131,6 +137,7 @@ export function defaultAppState(): AppState {
       launchAtLogin: false,
       startHidden: true
     },
+    theme: 'system',
     recentQuickTargets: [],
     runningPids: {}
   }
@@ -161,6 +168,7 @@ export const SettingsViewSchema = z.object({
   binary: z.object({
     overridePath: z.string().optional()
   }),
+  theme: ThemePreferenceSchema,
   appVersion: z.string()
 })
 
@@ -172,7 +180,8 @@ export const SettingsPatchSchema = z.object({
       launchAtLogin: z.boolean().optional(),
       startHidden: z.boolean().optional()
     })
-    .optional()
+    .optional(),
+  theme: ThemePreferenceSchema.optional()
 })
 
 export type SettingsPatch = z.infer<typeof SettingsPatchSchema>

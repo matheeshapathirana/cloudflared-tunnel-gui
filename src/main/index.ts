@@ -1,4 +1,4 @@
-import { app, BrowserWindow, ipcMain } from 'electron'
+import { app, BrowserWindow, ipcMain, nativeTheme } from 'electron'
 import { join } from 'node:path'
 import { electronApp, optimizer } from '@electron-toolkit/utils'
 import { EVENT_CHANNEL } from '@shared/ipc'
@@ -101,6 +101,9 @@ if (!gotTheLock) {
     setLoginSettings: (settings) => {
       app.setLoginItemSettings(settings)
     },
+    applyTheme: (theme) => {
+      nativeTheme.themeSource = theme
+    },
     onDownloadProgress: (payload) => {
       mainWindow?.webContents.send(EVENT_CHANNEL, {
         name: 'binary:downloadProgress',
@@ -144,6 +147,8 @@ if (!gotTheLock) {
     })
 
     await store.load()
+    // 'system' follows the Windows app-mode setting live; light/dark override it
+    nativeTheme.themeSource = store.get().theme
     await supervisor.cleanupOrphans()
     await importService.run().catch(() => {})
 

@@ -8,7 +8,13 @@ import type { SecretStore, ISecretStore } from '../security/SecretStore'
 import type { CloudflareApi, ICloudflareApi } from '../api/CloudflareApi'
 import type { ServiceManager } from '../services/ServiceManager'
 import type { ImportService } from '../import/ImportService'
-import type { SettingsView, Tunnel, RemoteHostname, DownloadProgressPayload } from '@shared/schemas'
+import type {
+  SettingsView,
+  Tunnel,
+  RemoteHostname,
+  DownloadProgressPayload,
+  ThemePreference
+} from '@shared/schemas'
 import { AppErrorException } from '@shared/result'
 import { app } from 'electron'
 import path from 'node:path'
@@ -26,6 +32,7 @@ export interface RegisterCommandsDeps {
   appVersion: string
   quitApp?: () => void
   setLoginSettings?: (settings: { openAtLogin: boolean; args: string[] }) => void
+  applyTheme?: (theme: ThemePreference) => void
   onDownloadProgress?: (payload: DownloadProgressPayload) => void
 }
 
@@ -643,6 +650,7 @@ export function registerCommands(router: IpcRouter, deps: RegisterCommandsDeps):
     return {
       startup: state.startup,
       binary: state.binary,
+      theme: state.theme,
       appVersion: deps.appVersion
     }
   }
@@ -656,7 +664,13 @@ export function registerCommands(router: IpcRouter, deps: RegisterCommandsDeps):
       if (input.startup) {
         s.startup = { ...s.startup, ...input.startup }
       }
+      if (input.theme) {
+        s.theme = input.theme
+      }
     })
+    if (input.theme) {
+      deps.applyTheme?.(input.theme)
+    }
     if (input.startup && deps.setLoginSettings) {
       const state = deps.store.get()
       deps.setLoginSettings({
