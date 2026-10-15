@@ -4,6 +4,7 @@ import { IpcRouter } from './IpcRouter'
 import { registerCommands, normalizeTarget } from './registerCommands'
 import type { Tunnel, BinaryStatus, AppState, BackupInfo } from '@shared/schemas'
 import { defaultAppState } from '@shared/schemas'
+import { AppErrorException } from '@shared/result'
 import type { TunnelRegistry } from '../tunnels/TunnelRegistry'
 import type { BinaryManager } from '../binary/BinaryManager'
 import type { SettingsStore } from '../settings/SettingsStore'
@@ -174,6 +175,7 @@ describe('registerCommands', () => {
       verifyToken: vi.fn(async () => ({ valid: true, id: 'token-id' })),
       listAccounts: vi.fn(async () => [{ id: 'acc-1', name: 'My Account', type: 'standard' }]),
       listZones: vi.fn(async () => [{ id: 'zone-1', name: 'example.com', status: 'active' }]),
+      listTunnels: vi.fn(async () => []),
       createTunnel: vi.fn(async (_tok, _acc, name) => ({
         id: 'cf-created-1',
         name,
@@ -677,6 +679,58 @@ describe('registerCommands', () => {
       }
     })
 
+    it('account.setToken explains a zone-only token (no account access)', async () => {
+      const { router, mockSecretStore } = setup({
+        cloudflareApi: {
+          listAccounts: vi.fn(async () => {
+            throw new AppErrorException('UNAUTHORIZED', 'Authentication error')
+          })
+        }
+      })
+      const res = await router.dispatch('account.setToken', { token: 'zone-only-token' })
+      expect(res).toMatchObject({
+        ok: false,
+        error: {
+          code: 'UNAUTHORIZED',
+          message: expect.stringContaining('Cloudflare Tunnel > Edit')
+        }
+      })
+      expect(mockSecretStore.setToken).not.toHaveBeenCalled()
+    })
+
+    it('account.setToken rejects, and does not save, a token without the tunnel permission', async () => {
+      const listTunnels = vi.fn(async () => {
+        throw new AppErrorException('UNAUTHORIZED', 'Authentication error')
+      })
+      const { router, mockSecretStore, mockStore } = setup({ cloudflareApi: { listTunnels } })
+      const res = await router.dispatch('account.setToken', { token: 'no-tunnel-permission' })
+      expect(listTunnels).toHaveBeenCalledWith('no-tunnel-permission', 'acc-1')
+      expect(res).toMatchObject({
+        ok: false,
+        error: {
+          code: 'UNAUTHORIZED',
+          message: expect.stringContaining('cannot manage Cloudflare Tunnels')
+        }
+      })
+      expect(mockSecretStore.setToken).not.toHaveBeenCalled()
+      expect(mockStore.update).not.toHaveBeenCalled()
+    })
+
+    it('account.setToken lets other API errors through unchanged', async () => {
+      const { router } = setup({
+        cloudflareApi: {
+          listTunnels: vi.fn(async () => {
+            throw new AppErrorException('INTERNAL', 'Cloudflare is having a bad day')
+          })
+        }
+      })
+      const res = await router.dispatch('account.setToken', { token: 't' })
+      expect(res).toMatchObject({
+        ok: false,
+        error: { code: 'INTERNAL', message: 'Cloudflare is having a bad day' }
+      })
+    })
+
     it('account.clearToken clears token and resets store account', async () => {
       const { router, mockSecretStore, mockStore } = setup()
       const res = await router.dispatch('account.clearToken', undefined)
@@ -702,7 +756,10 @@ describe('registerCommands', () => {
       if (res.ok) {
         const data = res.data as { url: string }
         expect(data.url).toContain('dash.cloudflare.com/profile/api-tokens')
-        expect(data.url).toContain('account_tunnel')
+        // only keys Cloudflare documents (it silently drops unknown ones)
+        expect(data.url).toContain('"key":"dns","type":"edit"')
+        expect(data.url).toContain('"key":"zone","type":"read"')
+        expect(data.url).not.toContain('account_tunnel')
       }
     })
   })

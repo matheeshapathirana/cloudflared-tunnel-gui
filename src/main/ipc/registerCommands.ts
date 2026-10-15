@@ -70,6 +70,9 @@ export function assertKnownConfigPath(deps: RegisterCommandsDeps, configPath: st
   return resolved
 }
 
+const TUNNEL_PERMISSION_HINT =
+  'In the Cloudflare dashboard, edit the token: add Account > Cloudflare Tunnel > Edit (and under Account Resources include your account), then paste it again.'
+
 export function registerCommands(router: IpcRouter, deps: RegisterCommandsDeps): void {
   router.register('tunnels.list', () => {
     return deps.registry.list()
@@ -277,15 +280,42 @@ export function registerCommands(router: IpcRouter, deps: RegisterCommandsDeps):
         verification.error || 'Invalid Cloudflare API token'
       )
     }
-    const accounts = await deps.cloudflareApi.listAccounts(input.token)
+    let accounts: Awaited<ReturnType<typeof deps.cloudflareApi.listAccounts>>
+    try {
+      accounts = await deps.cloudflareApi.listAccounts(input.token)
+    } catch (err) {
+      if (err instanceof AppErrorException && err.code === 'UNAUTHORIZED') {
+        throw new AppErrorException(
+          'UNAUTHORIZED',
+          `This token cannot see any account, so it cannot manage tunnels. ${TUNNEL_PERMISSION_HINT}`
+        )
+      }
+      throw err
+    }
     if (!accounts || accounts.length === 0) {
-      throw new AppErrorException('VALIDATION', 'No Cloudflare accounts accessible with this token')
+      throw new AppErrorException(
+        'VALIDATION',
+        `No Cloudflare accounts accessible with this token. ${TUNNEL_PERMISSION_HINT}`
+      )
     }
     const selectedAccount = input.accountId
       ? accounts.find((a) => a.id === input.accountId)
       : accounts[0]
     if (!selectedAccount) {
       throw new AppErrorException('NOT_FOUND', 'Selected account not found')
+    }
+    // Probe the tunnel permission before saving anything, so a zone-only token fails here with a
+    // clear message instead of later when creating or running a tunnel.
+    try {
+      await deps.cloudflareApi.listTunnels(input.token, selectedAccount.id)
+    } catch (err) {
+      if (err instanceof AppErrorException && err.code === 'UNAUTHORIZED') {
+        throw new AppErrorException(
+          'UNAUTHORIZED',
+          `This token cannot manage Cloudflare Tunnels. ${TUNNEL_PERMISSION_HINT}`
+        )
+      }
+      throw err
     }
     await deps.secretStore.setToken(input.token)
     await deps.store.update((s) => {
@@ -329,7 +359,10 @@ export function registerCommands(router: IpcRouter, deps: RegisterCommandsDeps):
 
   router.register('account.tokenCreationUrl', () => {
     return {
-      url: 'https://dash.cloudflare.com/profile/api-tokens?permissionGroupKeys=[{"key":"account_tunnel","type":"edit"},{"key":"dns","type":"edit"},{"key":"zone","type":"read"}]'
+      // Only keys Cloudflare documents are pre-filled; it silently drops unknown ones, which would
+      // leave a form that looks complete. Account > Cloudflare Tunnel > Edit has no documented
+      // key, so the dialog tells the user to add it by hand.
+      url: 'https://dash.cloudflare.com/profile/api-tokens?permissionGroupKeys=[{"key":"dns","type":"edit"},{"key":"zone","type":"read"}]&name=Cloudflared%20Tunnel%20GUI'
     }
   })
 
