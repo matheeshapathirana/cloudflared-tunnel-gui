@@ -359,10 +359,10 @@ export function registerCommands(router: IpcRouter, deps: RegisterCommandsDeps):
 
   router.register('account.tokenCreationUrl', () => {
     return {
-      // Only keys Cloudflare documents are pre-filled; it silently drops unknown ones, which would
-      // leave a form that looks complete. Account > Cloudflare Tunnel > Edit has no documented
-      // key, so the dialog tells the user to add it by hand.
-      url: 'https://dash.cloudflare.com/profile/api-tokens?permissionGroupKeys=[{"key":"dns","type":"edit"},{"key":"zone","type":"read"}]&name=Cloudflared%20Tunnel%20GUI'
+      // Cloudflare silently drops permission keys it does not recognise, so every key here was
+      // checked by opening this link: `argotunnel` is Account > Cloudflare Tunnel (it is not in
+      // Cloudflare's docs), `dns` and `zone` are documented. Account Resources is left for the user.
+      url: 'https://dash.cloudflare.com/profile/api-tokens?permissionGroupKeys=[{"key":"argotunnel","type":"edit"},{"key":"dns","type":"edit"},{"key":"zone","type":"read"}]&name=Cloudflared%20Tunnel%20GUI'
     }
   })
 

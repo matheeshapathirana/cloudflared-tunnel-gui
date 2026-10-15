@@ -756,7 +756,8 @@ describe('registerCommands', () => {
       if (res.ok) {
         const data = res.data as { url: string }
         expect(data.url).toContain('dash.cloudflare.com/profile/api-tokens')
-        // only keys Cloudflare documents (it silently drops unknown ones)
+        // Cloudflare silently drops unknown keys; these three were verified in the dashboard
+        expect(data.url).toContain('"key":"argotunnel","type":"edit"')
         expect(data.url).toContain('"key":"dns","type":"edit"')
         expect(data.url).toContain('"key":"zone","type":"read"')
         expect(data.url).not.toContain('account_tunnel')

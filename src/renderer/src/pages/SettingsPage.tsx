@@ -894,18 +894,16 @@ export function SettingsPage(): React.JSX.Element {
                 </div>
 
                 <div className="space-y-1.5 text-[11px] leading-normal text-neutral-500">
-                  <p>The token needs all three permissions:</p>
+                  <p>The token needs these permissions (the link pre-fills all three):</p>
                   <ul className="list-disc space-y-0.5 pl-4 font-mono text-neutral-400">
-                    <li>
-                      Account → Cloudflare Tunnel → Edit{' '}
-                      <span className="font-sans text-amber-400">(add this one yourself)</span>
-                    </li>
+                    <li>Account → Cloudflare Tunnel → Edit</li>
                     <li>Zone → DNS → Edit</li>
                     <li>Zone → Zone → Read</li>
                   </ul>
                   <p>
-                    The link pre-fills the two Zone rows. Set Account Resources to your account and
-                    Zone Resources to the domains you will use.
+                    On the Cloudflare page, choose your account under{' '}
+                    <span className="text-neutral-400">Account Resources</span> and the domains you
+                    will use under <span className="text-neutral-400">Zone Resources</span>.
                   </p>
                 </div>
               </div>
