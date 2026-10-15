@@ -12,7 +12,7 @@ export function describeUpdate(state: UpdateState): string {
   switch (status.state) {
     case 'idle':
       return status.checkedAt === undefined
-        ? 'Up to date'
+        ? 'Not checked yet'
         : `Up to date · checked ${formatClock(status.checkedAt)}`
     case 'checking':
       return 'Checking for updates…'

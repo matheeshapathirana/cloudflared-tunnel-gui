@@ -5,8 +5,8 @@ import { describeUpdate } from './updateText'
 const state = (status: UpdateStatus): UpdateState => ({ currentVersion: '1.0.0', status })
 
 describe('describeUpdate', () => {
-  it('describes idle without a check time', () => {
-    expect(describeUpdate(state({ state: 'idle' }))).toBe('Up to date')
+  it('says not checked yet when idle without a check time', () => {
+    expect(describeUpdate(state({ state: 'idle' }))).toBe('Not checked yet')
   })
 
   it('includes the check time when idle with checkedAt', () => {
