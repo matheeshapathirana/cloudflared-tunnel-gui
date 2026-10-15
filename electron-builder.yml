@@ -7,6 +7,12 @@ files:
   - '!**/*.map'
 asarUnpack:
   - resources/**
+# the MIT license and the third-party notices travel with every installed copy
+extraResources:
+  - from: LICENSE
+    to: LICENSE.txt
+  - from: THIRD_PARTY_NOTICES.md
+    to: THIRD_PARTY_NOTICES.md
 win:
   target:
     - target: nsis

@@ -91,3 +91,13 @@ docs/          Design spec and implementation plans
 ```
 
 The design is described in [`docs/superpowers/specs/2026-10-14-cloudflared-tunnel-gui-design.md`](docs/superpowers/specs/2026-10-14-cloudflared-tunnel-gui-design.md).
+
+## License
+
+Released under the [MIT License](LICENSE). The open-source libraries bundled with the app, and their licenses, are listed in [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md) (regenerate it with `npm run notices` after changing dependencies).
+
+## Credits and disclaimer
+
+This project was inspired by [hidumou/cloudflared-tunnel-gui](https://github.com/hidumou/cloudflared-tunnel-gui), a small Electron app for managing a single `cloudflared` tunnel. This is an independent implementation; it contains no code from that project.
+
+Cloudflared Tunnel GUI is an independent, community project. It is **not affiliated with, endorsed by, or sponsored by Cloudflare, Inc.** "Cloudflare", "Cloudflare Tunnel" and "cloudflared" are trademarks of Cloudflare, Inc., used here only to describe what the app works with.

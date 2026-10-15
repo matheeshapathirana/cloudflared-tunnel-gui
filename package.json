@@ -4,6 +4,7 @@
   "description": "Desktop GUI for managing Cloudflare Tunnels",
   "main": "./out/main/index.js",
   "author": "matheesha",
+  "license": "MIT",
   "scripts": {
     "format": "prettier --write .",
     "lint": "eslint --cache .",
@@ -16,7 +17,8 @@
     "build": "npm run typecheck && electron-vite build",
     "postinstall": "electron-builder install-app-deps",
     "build:unpack": "npm run build && electron-builder --dir",
-    "build:win": "npm run build && electron-builder --win"
+    "build:win": "npm run build && electron-builder --win",
+    "notices": "node scripts/generate-third-party-notices.mjs"
   },
   "dependencies": {
     "@electron-toolkit/utils": "^4.0.0",
