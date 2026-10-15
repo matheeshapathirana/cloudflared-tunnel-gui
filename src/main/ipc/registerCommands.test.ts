@@ -334,6 +334,25 @@ describe('registerCommands', () => {
     expect(res).toEqual({ ok: true, data: ['http://localhost:3000'] })
   })
 
+  it('quick.clearRecentTargets empties the saved list and keeps it empty', async () => {
+    const { router } = setup()
+    expect(await router.dispatch('quick.recentTargets', undefined)).toMatchObject({
+      data: ['http://localhost:3000']
+    })
+
+    const cleared = await router.dispatch('quick.clearRecentTargets', undefined)
+    expect(cleared).toEqual({ ok: true, data: undefined })
+    expect(await router.dispatch('quick.recentTargets', undefined)).toEqual({ ok: true, data: [] })
+
+    // clearing an already-empty list is fine, and new targets are remembered again afterwards
+    expect(await router.dispatch('quick.clearRecentTargets', undefined)).toMatchObject({ ok: true })
+    await router.dispatch('quick.start', { target: '5173' })
+    expect(await router.dispatch('quick.recentTargets', undefined)).toEqual({
+      ok: true,
+      data: ['http://localhost:5173']
+    })
+  })
+
   it('registers and handles local.import', async () => {
     const { router, mockLocalConfigStore, mockRegistry } = setup()
     const res = await router.dispatch('local.import', undefined)

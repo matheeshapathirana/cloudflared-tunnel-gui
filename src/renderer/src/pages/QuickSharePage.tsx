@@ -1,5 +1,5 @@
 import React, { useState } from 'react'
-import { Zap, Copy, ExternalLink, Square, FileText, Loader2, Check, Radio } from 'lucide-react'
+import { Zap, Copy, ExternalLink, Square, FileText, Loader2, Check, Radio, X } from 'lucide-react'
 import {
   Card,
   CardContent,
@@ -14,6 +14,7 @@ import { Badge } from '@renderer/components/ui/badge'
 import {
   useTunnels,
   useRecentQuickTargets,
+  useClearRecentQuickTargets,
   useStartQuickTunnel,
   useStopQuickTunnel,
   useTunnelStatuses
@@ -27,6 +28,7 @@ export function QuickSharePage(): React.JSX.Element {
   const { data: recentTargets = [] } = useRecentQuickTargets()
   const statuses = useTunnelStatuses()
   const startQuickMutation = useStartQuickTunnel()
+  const clearRecentMutation = useClearRecentQuickTargets()
   const stopQuickMutation = useStopQuickTunnel()
 
   const [targetInput, setTargetInput] = useState('')
@@ -272,6 +274,15 @@ export function QuickSharePage(): React.JSX.Element {
                       {target}
                     </button>
                   ))}
+                  <button
+                    type="button"
+                    onClick={() => clearRecentMutation.mutate()}
+                    disabled={clearRecentMutation.isPending}
+                    className="ml-auto inline-flex cursor-pointer items-center gap-1 rounded-md px-2 py-1 text-xs text-muted-foreground transition-colors hover:text-destructive disabled:cursor-not-allowed disabled:opacity-50"
+                  >
+                    <X className="size-3.5" />
+                    Clear
+                  </button>
                 </div>
               )}
 

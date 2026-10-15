@@ -41,6 +41,7 @@ export const commands = {
   'quick.start': cmd(z.object({ target: z.string().trim().min(1) }), TunnelSchema),
   'quick.stop': cmd(z.object({ id: z.string().uuid() }), z.void()),
   'quick.recentTargets': cmd(z.void(), z.array(z.string())),
+  'quick.clearRecentTargets': cmd(z.void(), z.void()),
   'local.import': cmd(z.void(), z.array(TunnelSchema)),
   'local.readConfig': cmd(
     z.object({ configPath: z.string().min(1) }),

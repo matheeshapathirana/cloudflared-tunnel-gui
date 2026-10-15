@@ -197,6 +197,16 @@ export function useRecentQuickTargets(): UseQueryResult<string[], Error> {
   })
 }
 
+export function useClearRecentQuickTargets(): UseMutationResult<void, Error, void> {
+  const client = useQueryClient()
+  return useMutation({
+    mutationFn: () => call('quick.clearRecentTargets', undefined),
+    onSuccess: () => {
+      client.invalidateQueries({ queryKey: ['quick', 'recentTargets'] })
+    }
+  })
+}
+
 export function useBinaryStatus(): UseQueryResult<BinaryStatus, Error> {
   return useQuery({
     queryKey: ['binary', 'status'],

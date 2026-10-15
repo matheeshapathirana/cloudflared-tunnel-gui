@@ -161,6 +161,12 @@ export function registerCommands(router: IpcRouter, deps: RegisterCommandsDeps):
     return deps.store.get().recentQuickTargets
   })
 
+  router.register('quick.clearRecentTargets', async () => {
+    await deps.store.update((s) => {
+      s.recentQuickTargets = []
+    })
+  })
+
   router.register('local.import', async () => {
     if (!deps.localConfigStore) return deps.registry.list()
 
