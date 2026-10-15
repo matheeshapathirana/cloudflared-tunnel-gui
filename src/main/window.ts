@@ -1,7 +1,7 @@
 import { BrowserWindow, nativeTheme, shell, type IpcMainInvokeEvent } from 'electron'
 import { join } from 'path'
 import { is } from '@electron-toolkit/utils'
-import icon from '../../resources/icon.png?asset'
+import { resourcePath } from './assets'
 import { isAllowedExternalUrl } from './externalLinks'
 
 export function isTrustedSender(event: IpcMainInvokeEvent): boolean {
@@ -30,7 +30,7 @@ export function createMainWindow(options?: { showOnReady?: boolean }): BrowserWi
     // match the theme background so a dark window doesn't flash white before first paint
     backgroundColor: nativeTheme.shouldUseDarkColors ? '#09090b' : '#ffffff',
     autoHideMenuBar: true,
-    icon,
+    icon: resourcePath('icon.png'),
     webPreferences: {
       preload: join(__dirname, '../preload/index.js'),
       sandbox: true,

@@ -2,8 +2,7 @@ import { app, BrowserWindow, ipcMain, nativeTheme } from 'electron'
 import { join } from 'node:path'
 import { electronApp, optimizer } from '@electron-toolkit/utils'
 import { EVENT_CHANNEL } from '@shared/ipc'
-import trayIcon16 from '../../resources/tray-16.png?asset'
-import trayIcon32 from '../../resources/tray-32.png?asset'
+import { resourcePath } from './assets'
 import { createMainWindow, isTrustedSender } from './window'
 import { IpcRouter } from './ipc/IpcRouter'
 import { registerCommands } from './ipc/registerCommands'
@@ -211,7 +210,7 @@ if (!gotTheLock) {
     }
 
     trayController = new TrayController({
-      iconPaths: { x1: trayIcon16, x2: trayIcon32 },
+      iconPaths: { x1: resourcePath('tray-16.png'), x2: resourcePath('tray-32.png') },
       onOpen: revealWindow,
       onNavigate: (page) => {
         revealWindow()
