@@ -30,18 +30,18 @@ export function AppSidebar({
   return (
     <aside
       className={cn(
-        'w-60 shrink-0 border-r border-border bg-card/50 flex flex-col justify-between p-3 select-none',
+        'w-16 lg:w-60 shrink-0 border-r border-border bg-card/50 flex flex-col justify-between p-2 lg:p-3 select-none',
         className
       )}
       aria-label="Sidebar navigation"
     >
       <div className="flex flex-col gap-4">
         {/* App Title */}
-        <div className="flex items-center gap-2.5 px-3 py-3 rounded-lg bg-card border border-border/50 shadow-xs">
+        <div className="flex items-center justify-center lg:justify-start gap-2.5 px-0 lg:px-3 py-3 rounded-lg bg-card border border-border/50 shadow-xs">
           <div className="flex items-center justify-center size-8 rounded-md bg-primary text-primary-foreground">
             <Radio className="size-4.5" />
           </div>
-          <div className="flex flex-col min-w-0">
+          <div className="hidden lg:flex flex-col min-w-0">
             <span className="font-semibold text-sm leading-tight truncate">Cloudflared Tunnel</span>
             <span className="text-xs text-muted-foreground leading-tight truncate">
               GUI Manager
@@ -60,8 +60,10 @@ export function AppSidebar({
                 type="button"
                 onClick={() => onSelectPage(item.id)}
                 aria-current={isActive ? 'page' : undefined}
+                aria-label={item.label}
+                title={item.label}
                 className={cn(
-                  'flex items-center gap-3 px-3 py-2 rounded-md text-sm font-medium transition-colors text-left cursor-pointer',
+                  'flex items-center justify-center lg:justify-start gap-3 px-0 lg:px-3 py-2 rounded-md text-sm font-medium transition-colors text-left cursor-pointer',
                   isActive
                     ? 'bg-secondary text-secondary-foreground shadow-xs'
                     : 'text-muted-foreground hover:bg-accent/60 hover:text-accent-foreground'
@@ -70,14 +72,14 @@ export function AppSidebar({
                 <Icon
                   className={cn('size-4.5', isActive ? 'text-primary' : 'text-muted-foreground')}
                 />
-                <span>{item.label}</span>
+                <span className="hidden lg:inline">{item.label}</span>
               </button>
             )
           })}
         </nav>
       </div>
 
-      <div className="px-3 py-2 text-xs text-muted-foreground border-t border-border/50">
+      <div className="hidden lg:block px-3 py-2 text-xs text-muted-foreground border-t border-border/50">
         Phase 1 Skeleton
       </div>
     </aside>

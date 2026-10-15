@@ -29,8 +29,8 @@ export function createMainWindow(options?: { showOnReady?: boolean }): BrowserWi
   const mainWindow = new BrowserWindow({
     width: 1100,
     height: 720,
-    minWidth: 900,
-    minHeight: 600,
+    minWidth: 640,
+    minHeight: 480,
     show: false,
     autoHideMenuBar: true,
     ...(process.platform === 'linux' ? { icon } : {}),

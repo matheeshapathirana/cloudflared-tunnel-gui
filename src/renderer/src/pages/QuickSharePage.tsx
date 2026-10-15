@@ -18,6 +18,7 @@ import {
   useStopQuickTunnel,
   useTunnelStatuses
 } from '@renderer/lib/api'
+import { PageContainer } from '@renderer/components/PageContainer'
 import { LogsDialog } from '@renderer/components/LogsDialog'
 import type { Tunnel, TunnelStatus } from '@shared/schemas'
 
@@ -74,7 +75,7 @@ export function QuickSharePage(): React.JSX.Element {
   }
 
   return (
-    <div className="flex flex-col gap-6 p-6 max-w-5xl">
+    <PageContainer className="max-w-4xl">
       <div>
         <h1 className="text-2xl font-bold tracking-tight">Quick share</h1>
         <p className="text-sm text-muted-foreground">
@@ -86,7 +87,7 @@ export function QuickSharePage(): React.JSX.Element {
       {activeTunnel ? (
         <Card className="border-primary/40 bg-neutral-950/50 shadow-md">
           <CardHeader className="pb-3">
-            <div className="flex items-center justify-between">
+            <div className="flex flex-wrap items-center justify-between gap-2">
               <div className="flex items-center gap-2">
                 <span className="relative flex h-3 w-3">
                   {activeStatus?.state === 'connected' ? (
@@ -131,7 +132,7 @@ export function QuickSharePage(): React.JSX.Element {
             <div className="rounded-lg border border-neutral-800 bg-neutral-900/60 p-4">
               <div className="text-xs text-neutral-400 mb-1">Public URL:</div>
               {activeStatus?.state === 'connected' && activeStatus.quickUrl ? (
-                <div className="flex items-center justify-between gap-3">
+                <div className="flex flex-wrap items-center justify-between gap-3">
                   <a
                     href={activeStatus.quickUrl}
                     target="_blank"
@@ -189,7 +190,7 @@ export function QuickSharePage(): React.JSX.Element {
             )}
           </CardContent>
 
-          <CardFooter className="flex items-center justify-between border-t border-neutral-800/80 pt-3">
+          <CardFooter className="flex flex-wrap items-center justify-between gap-2 border-t border-neutral-800/80 pt-3">
             <Button
               variant="outline"
               size="sm"
@@ -233,7 +234,7 @@ export function QuickSharePage(): React.JSX.Element {
           </CardHeader>
           <CardContent>
             <form onSubmit={handleStart} className="flex flex-col gap-4">
-              <div className="flex gap-2">
+              <div className="flex flex-col gap-2 sm:flex-row">
                 <Input
                   placeholder="Port or URL (e.g. 3000)"
                   value={targetInput}
@@ -291,6 +292,6 @@ export function QuickSharePage(): React.JSX.Element {
           onClose={() => setSelectedLogsTunnel(null)}
         />
       )}
-    </div>
+    </PageContainer>
   )
 }

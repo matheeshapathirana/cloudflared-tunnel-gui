@@ -53,6 +53,7 @@ import {
   CardHeader,
   CardTitle
 } from '@renderer/components/ui/card'
+import { PageContainer } from '@renderer/components/PageContainer'
 import { Badge } from '@renderer/components/ui/badge'
 import type { Account } from '@shared/schemas'
 
@@ -190,8 +191,8 @@ export function SettingsPage(): React.JSX.Element {
   const isConnected = Boolean(accountStatus?.connected)
 
   return (
-    <div className="flex flex-col gap-6 p-6 max-w-4xl">
-      <div>
+    <PageContainer className="max-w-4xl 2xl:max-w-[1400px] 2xl:grid 2xl:grid-cols-2 2xl:items-start">
+      <div className="2xl:col-span-2">
         <h1 className="text-2xl font-bold tracking-tight">Settings</h1>
         <p className="text-sm text-muted-foreground">
           Configure application preferences, Cloudflare authentication, and binary location.
@@ -641,7 +642,7 @@ export function SettingsPage(): React.JSX.Element {
       </Card>
 
       {/* Windows Services Card */}
-      <Card>
+      <Card className="2xl:order-last 2xl:col-span-2">
         <CardHeader className="flex flex-row items-center justify-between">
           <div>
             <CardTitle className="text-base flex items-center gap-2">
@@ -941,6 +942,6 @@ export function SettingsPage(): React.JSX.Element {
           </div>
         </div>
       )}
-    </div>
+    </PageContainer>
   )
 }
