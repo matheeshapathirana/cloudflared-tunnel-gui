@@ -838,6 +838,124 @@ describe('registerCommands', () => {
       )
     })
 
+    it('remote.* commands take the app tunnel id; Cloudflare tunnel id is not accepted', async () => {
+      // the Hostnames dialog once sent cfTunnelId, which the registry does not know
+      const { router, mockCloudflareApi } = setup()
+      for (const [name, extra] of [
+        ['remote.listHostnames', {}],
+        [
+          'remote.addHostname',
+          { zoneId: 'zone-1', hostname: 'x.example.com', service: 'http://a' }
+        ],
+        ['remote.removeHostname', { hostname: 'x.example.com' }]
+      ] as const) {
+        const res = await router.dispatch(name, {
+          tunnelId: sampleRemoteTunnel.cfTunnelId,
+          ...extra
+        } as never)
+        expect(res, name).toMatchObject({
+          ok: false,
+          error: { message: expect.stringContaining('Tunnel not found') }
+        })
+      }
+      expect(mockCloudflareApi.putConfiguration).not.toHaveBeenCalled()
+    })
+
+    it('remote.addHostname refuses a hostname whose DNS record points elsewhere, before changing anything', async () => {
+      const { router, mockCloudflareApi } = setup({
+        cloudflareApi: {
+          listDnsRecords: vi.fn(async () => [
+            {
+              id: 'rec-x',
+              name: 'blog.example.com',
+              type: 'CNAME',
+              content: 'someone-else.example.net',
+              proxied: true
+            }
+          ])
+        }
+      })
+      const res = await router.dispatch('remote.addHostname', {
+        tunnelId: sampleRemoteTunnel.id,
+        zoneId: 'zone-1',
+        hostname: 'blog.example.com',
+        service: 'http://localhost:4000'
+      })
+      expect(res).toMatchObject({
+        ok: false,
+        error: { code: 'VALIDATION', message: expect.stringContaining('someone-else.example.net') }
+      })
+      expect(mockCloudflareApi.putConfiguration).not.toHaveBeenCalled()
+      expect(mockCloudflareApi.createDnsCname).not.toHaveBeenCalled()
+    })
+
+    it('remote.addHostname reuses a DNS record that already points at this tunnel', async () => {
+      const { router, mockCloudflareApi } = setup({
+        cloudflareApi: {
+          listDnsRecords: vi.fn(async () => [
+            {
+              id: 'rec-own',
+              name: 'blog.example.com',
+              type: 'CNAME',
+              content: `${sampleRemoteTunnel.cfTunnelId}.cfargotunnel.com`,
+              proxied: true
+            }
+          ])
+        }
+      })
+      const res = await router.dispatch('remote.addHostname', {
+        tunnelId: sampleRemoteTunnel.id,
+        zoneId: 'zone-1',
+        hostname: 'blog.example.com',
+        service: 'http://localhost:4000'
+      })
+      expect(res).toEqual({ ok: true, data: undefined })
+      expect(mockCloudflareApi.putConfiguration).toHaveBeenCalledOnce()
+      expect(mockCloudflareApi.createDnsCname).not.toHaveBeenCalled()
+    })
+
+    it('remote.addHostname replaces an existing rule for the same hostname instead of duplicating it', async () => {
+      const { router, mockCloudflareApi } = setup()
+      const res = await router.dispatch('remote.addHostname', {
+        tunnelId: sampleRemoteTunnel.id,
+        zoneId: 'zone-1',
+        hostname: 'app.example.com', // already routed by the default mock config
+        service: 'http://localhost:9999'
+      })
+      expect(res.ok).toBe(true)
+      const rules = (mockCloudflareApi.putConfiguration as ReturnType<typeof vi.fn>).mock
+        .calls[0][3] as Array<{ hostname?: string; service: string }>
+      expect(rules.filter((r) => r.hostname === 'app.example.com')).toEqual([
+        expect.objectContaining({ service: 'http://localhost:9999' })
+      ])
+      expect(rules[rules.length - 1]).toEqual({ service: 'http_status:404' })
+    })
+
+    it('remote.addHostname puts the routing rules back if creating the DNS record fails', async () => {
+      const original = [
+        { hostname: 'app.example.com', service: 'http://localhost:3000' },
+        { service: 'http_status:404' }
+      ]
+      const { router, mockCloudflareApi } = setup({
+        cloudflareApi: {
+          getConfiguration: vi.fn(async () => ({ ingress: original })),
+          createDnsCname: vi.fn(async () => {
+            throw new AppErrorException('INTERNAL', 'DNS is down')
+          })
+        }
+      })
+      const res = await router.dispatch('remote.addHostname', {
+        tunnelId: sampleRemoteTunnel.id,
+        zoneId: 'zone-1',
+        hostname: 'blog.example.com',
+        service: 'http://localhost:4000'
+      })
+      expect(res).toMatchObject({ ok: false, error: { message: 'DNS is down' } })
+      const puts = (mockCloudflareApi.putConfiguration as ReturnType<typeof vi.fn>).mock.calls
+      expect(puts).toHaveLength(2)
+      expect(puts[1][3]).toEqual(original)
+    })
+
     it('remote.removeHostname removes rule and deletes DNS CNAME', async () => {
       const { router, mockCloudflareApi } = setup()
       const res = await router.dispatch('remote.removeHostname', {

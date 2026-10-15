@@ -22,7 +22,9 @@ export function RemoteHostnamesDialog({
   tunnel,
   onClose
 }: RemoteHostnamesDialogProps): React.JSX.Element {
-  const tunnelId = tunnel.cfTunnelId ?? tunnel.id
+  // the remote.* commands look the tunnel up in the app registry, so they take the app id,
+  // not Cloudflare's tunnel id (that one is only shown below)
+  const tunnelId = tunnel.id
 
   const { data: hostnames = [], isLoading: isHostnamesLoading } = useRemoteHostnames(tunnelId)
   const { data: zones = [], isLoading: isZonesLoading } = useAccountZones()

@@ -437,9 +437,28 @@ export function registerCommands(router: IpcRouter, deps: RegisterCommandsDeps):
     if (!accountId) {
       throw new AppErrorException('UNAUTHORIZED', 'Cloudflare account not selected')
     }
+    const target = `${tunnel.cfTunnelId}.cfargotunnel.com`
+
+    // Check DNS before touching the tunnel config, so a conflict cannot leave a half-applied change.
+    const records = (
+      await deps.cloudflareApi.listDnsRecords(token, input.zoneId, input.hostname)
+    ).filter((r) => r.name === input.hostname)
+    const conflict = records.find((r) => r.content !== target)
+    if (conflict) {
+      throw new AppErrorException(
+        'VALIDATION',
+        `${input.hostname} already has a DNS record pointing to ${conflict.content}. Remove it in Cloudflare or pick another subdomain.`
+      )
+    }
+    const dnsAlreadyRoutes = records.length > 0
+
     const config = await deps.cloudflareApi.getConfiguration(token, accountId, tunnel.cfTunnelId)
+    // adding a hostname that is already routed replaces its rule instead of duplicating it
     const rules = config.ingress.filter(
-      (r) => !r.service.startsWith('http_status:') && r.service !== 'http_status:404'
+      (r) =>
+        !r.service.startsWith('http_status:') &&
+        r.service !== 'http_status:404' &&
+        r.hostname !== input.hostname
     )
     rules.push({
       hostname: input.hostname,
@@ -448,8 +467,18 @@ export function registerCommands(router: IpcRouter, deps: RegisterCommandsDeps):
     })
     rules.push({ service: 'http_status:404' })
     await deps.cloudflareApi.putConfiguration(token, accountId, tunnel.cfTunnelId, rules)
-    const target = `${tunnel.cfTunnelId}.cfargotunnel.com`
-    await deps.cloudflareApi.createDnsCname(token, input.zoneId, input.hostname, target)
+
+    if (!dnsAlreadyRoutes) {
+      try {
+        await deps.cloudflareApi.createDnsCname(token, input.zoneId, input.hostname, target)
+      } catch (err) {
+        // put the routing rules back the way they were
+        await deps.cloudflareApi
+          .putConfiguration(token, accountId, tunnel.cfTunnelId, config.ingress)
+          .catch(() => {})
+        throw err
+      }
+    }
   })
 
   router.register('remote.removeHostname', async (input) => {
