@@ -5,10 +5,11 @@ directories:
 files:
   - out/**
   - '!**/*.map'
-asarUnpack:
-  - resources/**
-# the MIT license and the third-party notices travel with every installed copy
+# loose files next to the app: icons (the tray cannot read inside app.asar), the MIT license and
+# the third-party notices
 extraResources:
+  - from: resources
+    to: resources
   - from: LICENSE
     to: LICENSE.txt
   - from: THIRD_PARTY_NOTICES.md
