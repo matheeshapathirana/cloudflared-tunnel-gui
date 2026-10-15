@@ -2,7 +2,9 @@
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { spawnSync } from 'node:child_process'
-import { readFileSync } from 'node:fs'
+import { mkdtempSync, readFileSync, rmSync, symlinkSync } from 'node:fs'
+import { tmpdir } from 'node:os'
+import { basename, dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { matchesTag } from './check-release-version.mjs'
 
@@ -36,12 +38,35 @@ test('CLI exits 0 for the current package.json version', () => {
   assert.equal(result.status, 0, result.stderr + result.stdout)
 })
 
-test('CLI exits non-zero for a bogus tag', () => {
+test('CLI exits 1 for a bogus tag', () => {
   const result = spawnSync(process.execPath, [script, 'v999.0.0'], { encoding: 'utf8' })
-  assert.notEqual(result.status, 0)
+  assert.equal(result.status, 1, result.stderr + result.stdout)
 })
 
-test('CLI exits non-zero when no tag is given', () => {
+test('CLI exits 1 when no tag is given', () => {
   const result = spawnSync(process.execPath, [script], { encoding: 'utf8' })
-  assert.notEqual(result.status, 0)
+  assert.equal(result.status, 1, result.stderr + result.stdout)
+})
+
+test('CLI still enforces the guard when invoked through a junction/symlink path', (t) => {
+  // Node's ESM loader resolves symlinks for import.meta.url but process.argv[1] keeps the link path,
+  // so the two differ textually. The guard used to silently exit 0 in that case.
+  const dir = mkdtempSync(join(tmpdir(), 'release-guard-'))
+  t.after(() => rmSync(dir, { recursive: true, force: true }))
+  const link = join(dir, 'scripts-link')
+  try {
+    // 'junction' needs no admin rights on Windows and is ignored on other platforms.
+    symlinkSync(dirname(script), link, 'junction')
+  } catch (err) {
+    t.skip(`cannot create a directory link here: ${err.message}`)
+    return
+  }
+  const viaLink = join(link, basename(script))
+  assert.notEqual(viaLink, script)
+
+  const bogus = spawnSync(process.execPath, [viaLink, 'v999.0.0'], { encoding: 'utf8' })
+  assert.equal(bogus.status, 1, bogus.stderr + bogus.stdout)
+
+  const ok = spawnSync(process.execPath, [viaLink, `v${pkg.version}`], { encoding: 'utf8' })
+  assert.equal(ok.status, 0, ok.stderr + ok.stdout)
 })

@@ -1,8 +1,8 @@
 // Release guard: the pushed git tag must equal package.json's version (a leading "v" is optional),
 // so a tag can never publish a build whose embedded version differs from the tag.
 //   node scripts/check-release-version.mjs v1.2.3
-import { readFileSync } from 'node:fs'
-import { fileURLToPath, pathToFileURL } from 'node:url'
+import { readFileSync, realpathSync } from 'node:fs'
+import { fileURLToPath } from 'node:url'
 
 /** True when `tag` (with an optional leading "v") is exactly `version`. */
 export function matchesTag(tag, version) {
@@ -30,6 +30,21 @@ function main() {
   return 1
 }
 
-if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
+/**
+ * True unless this module is provably being imported by another script (the tests do that).
+ * Paths are compared after realpath so a symlink/junction or a drive-letter case difference cannot
+ * make the CLI silently skip main() and exit 0. Anything uncertain counts as "run the guard".
+ */
+function isCli() {
+  try {
+    const entry = process.argv[1]
+    if (!entry) return true
+    return realpathSync(entry) === realpathSync(fileURLToPath(import.meta.url))
+  } catch {
+    return true
+  }
+}
+
+if (isCli()) {
   process.exit(main())
 }
