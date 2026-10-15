@@ -1,0 +1,46 @@
+appId: com.matheesha.cloudflaredtunnelgui
+productName: Cloudflared Tunnel GUI
+directories:
+  buildResources: build
+files:
+  - out/**
+  - '!**/*.map'
+# loose files next to the app: icons (the tray cannot read inside app.asar), the MIT license and
+# the third-party notices
+extraResources:
+  - from: resources
+    to: resources
+  - from: LICENSE
+    to: LICENSE.txt
+  - from: THIRD_PARTY_NOTICES.md
+    to: THIRD_PARTY_NOTICES.md
+win:
+  target:
+    - target: nsis
+      arch: x64
+  executableName: cloudflared-tunnel-gui
+nsis:
+  artifactName: ${name}-${version}-setup.${ext}
+  shortcutName: ${productName}
+  uninstallDisplayName: ${productName}
+  createDesktopShortcut: always
+  # per-user, one-click install: no administrator rights, installs under the user's profile
+  oneClick: true
+  perMachine: false
+  # uninstalling must keep settings (%APPDATA%\CloudflaredTunnelGUI) and never touch cloudflared
+  deleteAppDataOnUninstall: false
+# Updates come from GitHub Releases. The release workflow creates a DRAFT; the owner publishes it.
+publish:
+  provider: github
+  owner: matheeshapathirana
+  repo: cloudflared-tunnel-gui
+  releaseType: draft
+npmRebuild: false
+# Hardening: nothing here needs Electron to act as a plain Node.js runtime, and the app only ever
+# loads its own code from the signed-off asar.
+electronFuses:
+  runAsNode: false
+  enableNodeOptionsEnvironmentVariable: false
+  enableNodeCliInspectArguments: false
+  enableEmbeddedAsarIntegrityValidation: true
+  onlyLoadAppFromAsar: true

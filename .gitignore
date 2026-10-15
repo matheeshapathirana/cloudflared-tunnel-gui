@@ -7,3 +7,5 @@ release/
 .env
 .env.*
 coverage/
+.eslintcache
+*.log*
