@@ -56,6 +56,7 @@ import {
 import { PageContainer } from '@renderer/components/PageContainer'
 import { Badge } from '@renderer/components/ui/badge'
 import { ThemeSwitcher } from '@renderer/components/ThemeSwitcher'
+import { UpdatesCard } from '@renderer/components/UpdatesCard'
 import type { Account } from '@shared/schemas'
 
 function formatSource(source: string): string {
@@ -804,25 +805,7 @@ export function SettingsPage(): React.JSX.Element {
         </CardContent>
       </Card>
 
-      {/* About Card */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-base">About</CardTitle>
-          <CardDescription className="text-xs">
-            Application version and information.
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="text-sm flex flex-col gap-1.5">
-          <div className="flex items-center justify-between text-xs">
-            <span className="text-muted-foreground">Version</span>
-            <span className="font-mono font-medium">{settings?.appVersion ?? '1.0.0'}</span>
-          </div>
-          <div className="flex items-center justify-between text-xs">
-            <span className="text-muted-foreground">Environment</span>
-            <span className="font-medium">Desktop (Electron)</span>
-          </div>
-        </CardContent>
-      </Card>
+      <UpdatesCard />
 
       {/* Connect Cloudflare Account Dialog */}
       {isConnectModalOpen && (

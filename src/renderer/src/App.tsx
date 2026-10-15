@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react'
 import { QueryClientProvider } from '@tanstack/react-query'
-import { queryClient } from './lib/api'
+import { queryClient, useUpdateState } from './lib/api'
 import { TooltipProvider } from './components/ui/tooltip'
 import { AppSidebar, type PageId } from './components/AppSidebar'
 import { BinaryBanner } from './components/BinaryBanner'
@@ -10,6 +10,7 @@ import { SettingsPage } from './pages/SettingsPage'
 
 function AppContent(): React.JSX.Element {
   const [activePage, setActivePage] = useState<PageId>('tunnels')
+  const updateReady = useUpdateState()?.status.state === 'ready'
 
   // the tray menu can ask for a specific page (e.g. "Quick share…")
   useEffect(() => window.api.on('app:navigate', (page) => setActivePage(page)), [])
@@ -33,7 +34,7 @@ function AppContent(): React.JSX.Element {
 
   return (
     <div className="flex h-screen w-screen overflow-hidden bg-background text-foreground">
-      <AppSidebar activePage={activePage} onSelectPage={setActivePage} />
+      <AppSidebar activePage={activePage} onSelectPage={setActivePage} updateReady={updateReady} />
 
       <main className="flex flex-1 flex-col overflow-hidden min-w-0">
         <BinaryBanner onGoToSettings={() => setActivePage('settings')} />

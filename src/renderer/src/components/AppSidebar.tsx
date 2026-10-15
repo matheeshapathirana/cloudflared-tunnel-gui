@@ -20,12 +20,14 @@ const NAV_ITEMS: NavItem[] = [
 interface AppSidebarProps {
   activePage: PageId
   onSelectPage: (page: PageId) => void
+  updateReady?: boolean
   className?: string
 }
 
 export function AppSidebar({
   activePage,
   onSelectPage,
+  updateReady = false,
   className
 }: AppSidebarProps): React.JSX.Element {
   return (
@@ -53,16 +55,17 @@ export function AppSidebar({
           {NAV_ITEMS.map((item) => {
             const Icon = item.icon
             const isActive = activePage === item.id
+            const showBadge = item.id === 'settings' && updateReady
             return (
               <button
                 key={item.id}
                 type="button"
                 onClick={() => onSelectPage(item.id)}
                 aria-current={isActive ? 'page' : undefined}
-                aria-label={item.label}
+                aria-label={showBadge ? `${item.label}, update ready` : item.label}
                 title={item.label}
                 className={cn(
-                  'flex items-center justify-center lg:justify-start gap-3 px-0 lg:px-3 py-2 rounded-md text-sm font-medium transition-colors text-left cursor-pointer',
+                  'relative flex items-center justify-center lg:justify-start gap-3 px-0 lg:px-3 py-2 rounded-md text-sm font-medium transition-colors text-left cursor-pointer',
                   isActive
                     ? 'bg-secondary text-secondary-foreground shadow-xs'
                     : 'text-muted-foreground hover:bg-accent/60 hover:text-accent-foreground'
@@ -72,6 +75,12 @@ export function AppSidebar({
                   className={cn('size-4.5', isActive ? 'text-primary' : 'text-muted-foreground')}
                 />
                 <span className="hidden lg:inline">{item.label}</span>
+                {showBadge && (
+                  <span
+                    aria-hidden="true"
+                    className="absolute top-1.5 right-2 size-2 rounded-full bg-primary ring-2 ring-card lg:static lg:ml-auto lg:ring-0"
+                  />
+                )}
               </button>
             )
           })}
