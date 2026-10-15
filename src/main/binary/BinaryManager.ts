@@ -31,6 +31,26 @@ export interface BinaryManagerDependencies {
   }
   getOverride: () => string | undefined
   fetchFn?: typeof fetch
+  /** True when the file carries a valid signature from Cloudflare, Inc. Skipped when not provided. */
+  verifySignature?: (file: string) => Promise<boolean>
+}
+
+const MAX_DOWNLOAD_BYTES = 200 * 1024 * 1024
+
+/** Only release assets of the official cloudflared repository may be downloaded. */
+export function isOfficialDownloadUrl(url: string): boolean {
+  try {
+    const u = new URL(url)
+    return (
+      u.protocol === 'https:' &&
+      !u.username &&
+      !u.password &&
+      u.hostname.toLowerCase() === 'github.com' &&
+      u.pathname.startsWith('/cloudflare/cloudflared/releases/download/')
+    )
+  } catch {
+    return false
+  }
 }
 
 export function parseVersion(stdout: string): string | null {
@@ -277,6 +297,13 @@ export class BinaryManager {
       )
     }
 
+    if (!isOfficialDownloadUrl(release.downloadUrl)) {
+      throw new AppErrorException(
+        'VALIDATION',
+        'Refusing to download cloudflared from an unexpected location'
+      )
+    }
+
     const localAppData = this.deps.env.LOCALAPPDATA || process.env.LOCALAPPDATA
     if (!localAppData) {
       throw new AppErrorException('INTERNAL', 'LOCALAPPDATA environment variable is missing')
@@ -302,6 +329,9 @@ export class BinaryManager {
 
     const contentLengthHeader = res.headers.get('content-length')
     const totalBytes = contentLengthHeader ? parseInt(contentLengthHeader, 10) : 0
+    if (totalBytes > MAX_DOWNLOAD_BYTES) {
+      throw new AppErrorException('VALIDATION', 'The cloudflared download is unexpectedly large')
+    }
 
     const hash = crypto.createHash('sha256')
     const fileStream = fs.createWriteStream(tempFile)
@@ -320,9 +350,15 @@ export class BinaryManager {
           if (done) break
           if (value) {
             const chunk = Buffer.from(value)
+            transferred += chunk.length
+            if (transferred > MAX_DOWNLOAD_BYTES) {
+              throw new AppErrorException(
+                'VALIDATION',
+                'The cloudflared download is unexpectedly large'
+              )
+            }
             fileStream.write(chunk)
             hash.update(chunk)
-            transferred += chunk.length
             const percent = totalBytes > 0 ? Math.round((transferred / totalBytes) * 1000) / 10 : 0
             options.onProgress?.({ percent, transferred, total: totalBytes })
           }
@@ -330,6 +366,12 @@ export class BinaryManager {
       } else {
         const arrayBuf = await res.arrayBuffer()
         const buffer = Buffer.from(arrayBuf)
+        if (buffer.length > MAX_DOWNLOAD_BYTES) {
+          throw new AppErrorException(
+            'VALIDATION',
+            'The cloudflared download is unexpectedly large'
+          )
+        }
         fileStream.write(buffer)
         hash.update(buffer)
         options.onProgress?.({ percent: 100, transferred: buffer.length, total: buffer.length })
@@ -363,12 +405,48 @@ export class BinaryManager {
       }
     }
 
-    if (await this.deps.exists(targetFile)) {
-      await fs.promises.unlink(targetFile).catch(() => {})
+    // The checksum comes from the same release page, so it only catches a corrupted download. The
+    // signature proves the file really was built and signed by Cloudflare.
+    if (this.deps.verifySignature && !(await this.deps.verifySignature(tempFile))) {
+      await fs.promises.unlink(tempFile).catch(() => {})
+      throw new AppErrorException(
+        'VALIDATION',
+        'The downloaded file is not signed by Cloudflare, Inc. and was discarded.'
+      )
     }
-    await fs.promises.rename(tempFile, targetFile)
+
+    try {
+      await fs.promises.rm(targetFile, { force: true })
+      await fs.promises.rename(tempFile, targetFile)
+    } catch (err) {
+      await fs.promises.unlink(tempFile).catch(() => {})
+      throw new AppErrorException(
+        'INTERNAL',
+        `Could not replace ${targetFile}. If a tunnel is running from it, stop the tunnel and try again. (${err instanceof Error ? err.message : String(err)})`
+      )
+    }
 
     return targetFile
+  }
+}
+
+/** True when the file has a valid Authenticode signature issued to Cloudflare, Inc. */
+export async function verifyCloudflareSignature(file: string): Promise<boolean> {
+  try {
+    await pExecFile(
+      'powershell.exe',
+      [
+        '-NoProfile',
+        '-NonInteractive',
+        '-Command',
+        // the path travels in an environment variable, never inside the script text
+        "$s = Get-AuthenticodeSignature -LiteralPath $env:CFTG_VERIFY_FILE; if ($s.Status -eq 'Valid' -and $s.SignerCertificate.Subject -match 'O=\"?Cloudflare, Inc\\.') { exit 0 } else { exit 1 }"
+      ],
+      { timeout: 60000, windowsHide: true, env: { ...process.env, CFTG_VERIFY_FILE: file } }
+    )
+    return true
+  } catch {
+    return false
   }
 }
 
@@ -387,6 +465,7 @@ export function createDefaultBinaryManager(getOverride: () => string | undefined
       return { stdout: res.stdout.toString(), stderr: res.stderr.toString() }
     },
     env: process.env,
-    getOverride
+    getOverride,
+    verifySignature: verifyCloudflareSignature
   })
 }

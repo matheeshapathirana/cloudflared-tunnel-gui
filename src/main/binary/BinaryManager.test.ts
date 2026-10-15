@@ -10,8 +10,13 @@ import {
   compareVersions,
   extractSha256,
   findWindowsAsset,
+  isOfficialDownloadUrl,
+  verifyCloudflareSignature,
   BinaryManagerDependencies
 } from './BinaryManager'
+
+const OFFICIAL_URL =
+  'https://github.com/cloudflare/cloudflared/releases/download/2026.10.5/cloudflared-windows-amd64.exe'
 
 describe('BinaryManager', () => {
   describe('parseVersion', () => {
@@ -404,6 +409,72 @@ describe('BinaryManager', () => {
     })
   })
 
+  // The real check used by download(): real PowerShell, real files, nothing is modified.
+  describe.runIf(process.platform === 'win32')('verifyCloudflareSignature', () => {
+    const cloudflared = 'C:\\Program Files (x86)\\cloudflared\\cloudflared.exe'
+
+    it.runIf(fs.existsSync(cloudflared))('accepts the genuine cloudflared.exe', async () => {
+      expect(await verifyCloudflareSignature(cloudflared)).toBe(true)
+    })
+
+    it.runIf(fs.existsSync(cloudflared))(
+      'accepts it under any file name, since downloads use a temp name',
+      async () => {
+        const dir = await fs.promises.mkdtemp(path.join(os.tmpdir(), 'sig-name-'))
+        try {
+          const copy = path.join(dir, 'cloudflared-download.tmp.123')
+          await fs.promises.copyFile(cloudflared, copy)
+          expect(await verifyCloudflareSignature(copy)).toBe(true)
+        } finally {
+          await fs.promises.rm(dir, { recursive: true, force: true })
+        }
+      }
+    )
+
+    it.runIf(fs.existsSync(cloudflared))(
+      'rejects the same file once its code is altered',
+      async () => {
+        const dir = await fs.promises.mkdtemp(path.join(os.tmpdir(), 'sig-tamper-'))
+        try {
+          const bytes = await fs.promises.readFile(cloudflared)
+          const i = Math.floor(bytes.length * 0.3)
+          bytes[i] = bytes[i] ^ 0xff
+          const tampered = path.join(dir, 'cloudflared.exe')
+          await fs.promises.writeFile(tampered, bytes)
+          expect(await verifyCloudflareSignature(tampered)).toBe(false)
+        } finally {
+          await fs.promises.rm(dir, { recursive: true, force: true })
+        }
+      }
+    )
+
+    it('rejects files signed by someone else, unsigned files, and missing files', async () => {
+      const dir = await fs.promises.mkdtemp(path.join(os.tmpdir(), 'sig-other-'))
+      try {
+        const unsigned = path.join(dir, 'cloudflared.exe')
+        await fs.promises.writeFile(unsigned, 'not a program')
+        expect(
+          await verifyCloudflareSignature(`${process.env.SystemRoot}\\System32\\cmd.exe`)
+        ).toBe(false)
+        expect(await verifyCloudflareSignature(unsigned)).toBe(false)
+        expect(await verifyCloudflareSignature(path.join(dir, 'missing.exe'))).toBe(false)
+      } finally {
+        await fs.promises.rm(dir, { recursive: true, force: true })
+      }
+    })
+
+    it('treats a file name with quotes and PowerShell syntax as just a file name', async () => {
+      const dir = await fs.promises.mkdtemp(path.join(os.tmpdir(), 'sig-inject-'))
+      try {
+        const odd = path.join(dir, "it's $(calc) ;x.exe")
+        await fs.promises.writeFile(odd, 'x')
+        expect(await verifyCloudflareSignature(odd)).toBe(false)
+      } finally {
+        await fs.promises.rm(dir, { recursive: true, force: true })
+      }
+    })
+  })
+
   describe('download', () => {
     it('downloads binary, validates sha256, and reports progress', async () => {
       const fakeBinaryContent = Buffer.from('fake-cloudflared-exe-content-12345')
@@ -421,7 +492,7 @@ describe('BinaryManager', () => {
               assets: [
                 {
                   name: 'cloudflared-windows-amd64.exe',
-                  browser_download_url: 'https://github.com/download/cloudflared-windows-amd64.exe'
+                  browser_download_url: OFFICIAL_URL
                 }
               ]
             })
@@ -483,7 +554,7 @@ describe('BinaryManager', () => {
               assets: [
                 {
                   name: 'cloudflared-windows-amd64.exe',
-                  browser_download_url: 'https://github.com/download/cloudflared-windows-amd64.exe'
+                  browser_download_url: OFFICIAL_URL
                 }
               ]
             })
@@ -515,6 +586,145 @@ describe('BinaryManager', () => {
 
       await expect(mgr.download()).rejects.toThrow('Checksum verification failed')
       await fs.promises.rm(tempDir, { recursive: true, force: true })
+    })
+
+    describe('safety checks', () => {
+      const content = Buffer.from('fake-cloudflared-exe-content-12345')
+      const sha = crypto.createHash('sha256').update(content).digest('hex')
+
+      // a fetch that serves a release page and then the binary
+      const releaseFetch = (opts: {
+        downloadUrl?: string
+        contentLength?: number
+        body?: Buffer
+      }): { fetch: typeof fetch; calls: string[] } => {
+        const calls: string[] = []
+        const body = opts.body ?? content
+        const fetchFn = vi.fn(async (url: string) => {
+          calls.push(url)
+          if (url.includes('releases/latest')) {
+            return {
+              ok: true,
+              status: 200,
+              json: async () => ({
+                tag_name: '2026.10.5',
+                html_url: 'https://github.com/releases/2026.10.5',
+                body: `cloudflared-windows-amd64.exe: ${sha}`,
+                assets: [
+                  {
+                    name: 'cloudflared-windows-amd64.exe',
+                    browser_download_url: opts.downloadUrl ?? OFFICIAL_URL
+                  }
+                ]
+              })
+            }
+          }
+          return {
+            ok: true,
+            status: 200,
+            headers: new Headers({ 'content-length': String(opts.contentLength ?? body.length) }),
+            arrayBuffer: async () =>
+              body.buffer.slice(body.byteOffset, body.byteOffset + body.byteLength)
+          }
+        }) as unknown as typeof fetch
+        return { fetch: fetchFn, calls }
+      }
+
+      const withTemp = async (run: (dir: string) => Promise<void>): Promise<void> => {
+        const dir = await fs.promises.mkdtemp(path.join(os.tmpdir(), 'binary-mgr-safety-'))
+        try {
+          await run(dir)
+        } finally {
+          await fs.promises.rm(dir, { recursive: true, force: true })
+        }
+      }
+      const binDir = (dir: string): string => path.join(dir, 'CloudflaredTunnelGUI', 'bin')
+      const leftovers = async (dir: string): Promise<string[]> =>
+        (await fs.promises.readdir(binDir(dir)).catch(() => [] as string[])).sort()
+      const manager = (
+        dir: string,
+        fetchFn: typeof fetch,
+        verifySignature?: (f: string) => Promise<boolean>
+      ): BinaryManager =>
+        new BinaryManager({
+          exists: vi.fn(async () => false),
+          execFile: vi.fn(),
+          env: { LOCALAPPDATA: dir },
+          getOverride: () => undefined,
+          fetchFn,
+          verifySignature
+        })
+
+      it('isOfficialDownloadUrl only accepts cloudflare/cloudflared release assets on github.com', () => {
+        expect(isOfficialDownloadUrl(OFFICIAL_URL)).toBe(true)
+        for (const bad of [
+          'http://github.com/cloudflare/cloudflared/releases/download/1/x.exe',
+          'https://evil.example/cloudflare/cloudflared/releases/download/1/x.exe',
+          'https://github.com.evil.example/cloudflare/cloudflared/releases/download/1/x.exe',
+          'https://github.com/someone-else/cloudflared/releases/download/1/x.exe',
+          'https://github.com/cloudflare/cloudflared/archive/main.zip',
+          'https://user:pw@github.com/cloudflare/cloudflared/releases/download/1/x.exe',
+          'not a url',
+          ''
+        ]) {
+          expect(isOfficialDownloadUrl(bad), bad).toBe(false)
+        }
+      })
+
+      it('refuses a download link that is not an official release asset, without fetching it', async () => {
+        await withTemp(async (dir) => {
+          const { fetch: fetchFn, calls } = releaseFetch({
+            downloadUrl: 'https://evil.example/cloudflared-windows-amd64.exe'
+          })
+          await expect(manager(dir, fetchFn).download()).rejects.toThrow('unexpected location')
+          expect(calls).toHaveLength(1) // only the release page, never the file
+        })
+      })
+
+      it('discards a file that is not signed by Cloudflare', async () => {
+        await withTemp(async (dir) => {
+          const verify = vi.fn(async () => false)
+          const { fetch: fetchFn } = releaseFetch({})
+          await expect(manager(dir, fetchFn, verify).download()).rejects.toThrow(
+            'not signed by Cloudflare'
+          )
+          expect(verify).toHaveBeenCalledOnce()
+          expect(await leftovers(dir)).toEqual([]) // no cloudflared.exe, no temp file
+        })
+      })
+
+      it('installs a correctly signed file and verifies the downloaded temp file', async () => {
+        await withTemp(async (dir) => {
+          const verify = vi.fn(async (file: string) => fs.existsSync(file))
+          const { fetch: fetchFn } = releaseFetch({})
+          const target = await manager(dir, fetchFn, verify).download()
+          expect(path.basename(target)).toBe('cloudflared.exe')
+          expect(await leftovers(dir)).toEqual(['cloudflared.exe'])
+          expect(verify.mock.calls[0][0]).not.toBe(target) // checked before it replaces anything
+        })
+      })
+
+      it('rejects an oversized download before writing it', async () => {
+        await withTemp(async (dir) => {
+          const { fetch: fetchFn } = releaseFetch({ contentLength: 300 * 1024 * 1024 })
+          await expect(manager(dir, fetchFn).download()).rejects.toThrow('unexpectedly large')
+          expect(await leftovers(dir)).toEqual([])
+        })
+      })
+
+      it('explains, and cleans up, when the existing cloudflared.exe cannot be replaced', async () => {
+        await withTemp(async (dir) => {
+          // a directory in the way makes both the delete and the rename fail, like a locked exe
+          await fs.promises.mkdir(path.join(binDir(dir), 'cloudflared.exe', 'inner'), {
+            recursive: true
+          })
+          const { fetch: fetchFn } = releaseFetch({})
+          await expect(manager(dir, fetchFn).download()).rejects.toThrow(
+            /Could not replace .*stop the tunnel/
+          )
+          expect(await leftovers(dir)).toEqual(['cloudflared.exe']) // the temp download is gone
+        })
+      })
     })
 
     it('requires confirmation when checksum is missing', async () => {

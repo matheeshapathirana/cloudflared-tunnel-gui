@@ -4,7 +4,6 @@
   "description": "Desktop GUI for managing Cloudflare Tunnels",
   "main": "./out/main/index.js",
   "author": "matheesha",
-  "homepage": "",
   "scripts": {
     "format": "prettier --write .",
     "lint": "eslint --cache .",
@@ -17,24 +16,10 @@
     "build": "npm run typecheck && electron-vite build",
     "postinstall": "electron-builder install-app-deps",
     "build:unpack": "npm run build && electron-builder --dir",
-    "build:win": "npm run build && electron-builder --win",
-    "build:mac": "electron-vite build && electron-builder --mac",
-    "build:linux": "electron-vite build && electron-builder --linux"
+    "build:win": "npm run build && electron-builder --win"
   },
   "dependencies": {
-    "@electron-toolkit/preload": "^3.0.2",
     "@electron-toolkit/utils": "^4.0.0",
-    "@radix-ui/react-label": "^2.1.17",
-    "@radix-ui/react-separator": "^1.2.0",
-    "@radix-ui/react-slot": "^1.5.0",
-    "@radix-ui/react-switch": "^1.4.1",
-    "@radix-ui/react-tooltip": "^1.4.1",
-    "@tanstack/react-query": "^5.104.2",
-    "class-variance-authority": "^0.7.1",
-    "cloudflare": "^7.3.0",
-    "clsx": "^2.1.1",
-    "lucide-react": "^1.56.0",
-    "tailwind-merge": "^3.7.0",
     "yaml": "^2.9.1",
     "zod": "^4.6.7"
   },
@@ -42,11 +27,19 @@
     "@electron-toolkit/eslint-config-prettier": "^3.0.0",
     "@electron-toolkit/eslint-config-ts": "^3.1.0",
     "@electron-toolkit/tsconfig": "^2.0.0",
+    "@radix-ui/react-label": "^2.1.17",
+    "@radix-ui/react-separator": "^1.2.0",
+    "@radix-ui/react-slot": "^1.5.0",
+    "@radix-ui/react-switch": "^1.4.1",
+    "@radix-ui/react-tooltip": "^1.4.1",
     "@tailwindcss/vite": "^4.3.3",
+    "@tanstack/react-query": "^5.104.2",
     "@types/node": "^22.19.1",
     "@types/react": "^19.2.7",
     "@types/react-dom": "^19.2.3",
     "@vitejs/plugin-react": "^5.1.1",
+    "class-variance-authority": "^0.7.1",
+    "clsx": "^2.1.1",
     "electron": "^39.2.6",
     "electron-builder": "^26.0.12",
     "electron-vite": "^5.0.0",
@@ -54,9 +47,11 @@
     "eslint-plugin-react": "^7.37.5",
     "eslint-plugin-react-hooks": "^7.0.1",
     "eslint-plugin-react-refresh": "^0.4.24",
+    "lucide-react": "^1.56.0",
     "prettier": "^3.7.4",
     "react": "^19.2.1",
     "react-dom": "^19.2.1",
+    "tailwind-merge": "^3.7.0",
     "tailwindcss": "^4.3.3",
     "typescript": "^5.9.3",
     "vite": "^7.2.6",
@@ -67,5 +62,6 @@
     "esbuild@0.25.12": true,
     "esbuild@0.28.2": true,
     "electron-winstaller@5.4.0": true
-  }
+  },
+  "private": true
 }

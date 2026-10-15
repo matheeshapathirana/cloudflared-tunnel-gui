@@ -237,7 +237,7 @@ export function buildAdoptedCommandLine(original: string, port: number, logFile:
  *  - Assert-Signed: refuses to put any binary that is not signed by Cloudflare, Inc. into
  *    the SYSTEM-run folder.
  */
-const PRELUDE = `$ErrorActionPreference = 'Stop'
+export const PRELUDE = `$ErrorActionPreference = 'Stop'
 function Assert-AdminOwned([string]$p) {
   $owner = (Get-Acl -LiteralPath $p).GetOwner([System.Security.Principal.SecurityIdentifier]).Value
   if ($owner -ne 'S-1-5-32-544' -and $owner -ne 'S-1-5-18') { throw "Refusing to use $($p) because it is not owned by Administrators or SYSTEM" }

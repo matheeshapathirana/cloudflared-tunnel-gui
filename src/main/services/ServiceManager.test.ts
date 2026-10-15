@@ -1,5 +1,8 @@
 import { describe, it, expect, vi } from 'vitest'
 import { execFileSync } from 'node:child_process'
+import fs from 'node:fs'
+import os from 'node:os'
+import path from 'node:path'
 import {
   isValidServiceName,
   isManagedServiceName,
@@ -14,6 +17,7 @@ import {
   generateControlScript,
   generateAdoptScript,
   generateUpdateBinaryScript,
+  PRELUDE,
   ServiceManager
 } from './ServiceManager'
 import type { BinaryStatus } from '../../shared/schemas'
@@ -332,6 +336,69 @@ describe('PowerShell script generators', () => {
     }
   )
 })
+
+// Runs the real helper functions that the elevated scripts rely on, in real PowerShell, against
+// real files. They need no admin rights and change nothing on the machine.
+describe.runIf(process.platform === 'win32')(
+  'elevated script safety helpers (real PowerShell)',
+  () => {
+    const ps = (command: string): string => {
+      try {
+        execFileSync(
+          'powershell.exe',
+          ['-NoProfile', '-NonInteractive', '-Command', `${PRELUDE}\n${command}\nexit 0`],
+          { stdio: 'pipe' }
+        )
+        return 'accepted'
+      } catch {
+        return 'rejected'
+      }
+    }
+    const isElevated = (): boolean =>
+      execFileSync(
+        'powershell.exe',
+        [
+          '-NoProfile',
+          '-Command',
+          '([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)'
+        ],
+        { encoding: 'utf8' }
+      ).trim() === 'True'
+    const cloudflared = 'C:\\Program Files (x86)\\cloudflared\\cloudflared.exe'
+
+    it('Assert-Signed rejects a Microsoft-signed binary and an unsigned file', () => {
+      expect(ps(`Assert-Signed '${process.env.SystemRoot}\\System32\\cmd.exe'`)).toBe('rejected')
+      const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'signed-test-'))
+      try {
+        const fake = path.join(dir, 'cloudflared.exe')
+        fs.writeFileSync(fake, 'not a program')
+        expect(ps(`Assert-Signed '${fake}'`)).toBe('rejected')
+      } finally {
+        fs.rmSync(dir, { recursive: true, force: true })
+      }
+    })
+
+    it.runIf(fs.existsSync(cloudflared))(
+      'Assert-Signed accepts the genuine cloudflared.exe',
+      () => {
+        expect(ps(`Assert-Signed '${cloudflared}'`)).toBe('accepted')
+      }
+    )
+
+    it.runIf(!isElevated())('Assert-AdminOwned rejects a folder owned by the current user', () => {
+      const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'owner-test-'))
+      try {
+        expect(ps(`Assert-AdminOwned '${dir}'`)).toBe('rejected')
+      } finally {
+        fs.rmSync(dir, { recursive: true, force: true })
+      }
+    })
+
+    it('Assert-AdminOwned accepts a folder owned by SYSTEM or Administrators', () => {
+      expect(ps(`Assert-AdminOwned 'C:\\ProgramData'`)).toBe('accepted')
+    })
+  }
+)
 
 describe('ServiceManager operations', () => {
   const fakeBinaryManager = {

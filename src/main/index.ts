@@ -140,7 +140,7 @@ if (!gotTheLock) {
 
   app.whenReady().then(async () => {
     // Set app user model id for windows
-    electronApp.setAppUserModelId('com.electron')
+    electronApp.setAppUserModelId('com.matheesha.cloudflaredtunnelgui')
 
     app.on('browser-window-created', (_, window) => {
       optimizer.watchWindowShortcuts(window)
