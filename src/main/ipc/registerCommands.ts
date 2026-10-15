@@ -527,11 +527,61 @@ export function registerCommands(router: IpcRouter, deps: RegisterCommandsDeps):
     }
   })
 
+  // A tunnel that a Windows service is running must not be deleted out from under it.
+  const assertNotRunByService = async (tunnel: Tunnel): Promise<void> => {
+    if (tunnel.runMode === 'service') {
+      const by = tunnel.serviceName ? ` ${tunnel.serviceName}` : ''
+      throw new AppErrorException(
+        'VALIDATION',
+        `Managed by Windows service${by}. Switch it to app mode (uninstall the service) before deleting.`
+      )
+    }
+    if (tunnel.cfTunnelId && deps.serviceManager) {
+      const running = (await deps.serviceManager.listServices()).find(
+        (s) => s.cfTunnelId === tunnel.cfTunnelId && s.state !== 'stopped'
+      )
+      if (running) {
+        throw new AppErrorException(
+          'VALIDATION',
+          `Windows service ${running.serviceName} is running this tunnel. Stop or uninstall the service before deleting.`
+        )
+      }
+    }
+  }
+
+  // Deletes the DNS CNAME records, in every zone, that point at this tunnel (best effort).
+  const removeDnsRecordsPointingAt = async (
+    token: string,
+    accountId: string,
+    cfTunnelId: string
+  ): Promise<void> => {
+    if (!deps.cloudflareApi) return
+    const target = `${cfTunnelId}.cfargotunnel.com`
+    try {
+      const zones = await deps.cloudflareApi.listZones(token, accountId)
+      for (const zone of zones) {
+        try {
+          const records = await deps.cloudflareApi.listDnsRecords(token, zone.id)
+          for (const record of records) {
+            if (record.content === target) {
+              await deps.cloudflareApi.deleteDnsRecord(token, zone.id, record.id)
+            }
+          }
+        } catch {
+          // Ignore zone-level errors
+        }
+      }
+    } catch {
+      // Ignore zone listing errors
+    }
+  }
+
   router.register('remote.delete', async (input) => {
     const tunnel = deps.registry.get(input.tunnelId)
     if (tunnel.kind !== 'remote' || !tunnel.cfTunnelId) {
       throw new AppErrorException('VALIDATION', 'Tunnel is not a remote tunnel')
     }
+    await assertNotRunByService(tunnel)
 
     if (deps.supervisor) {
       const status = deps.supervisor.getStatus(tunnel.id)
@@ -552,26 +602,44 @@ export function registerCommands(router: IpcRouter, deps: RegisterCommandsDeps):
       throw new AppErrorException('UNAUTHORIZED', 'Cloudflare account not selected')
     }
 
-    const target = `${tunnel.cfTunnelId}.cfargotunnel.com`
-    try {
-      const zones = await deps.cloudflareApi.listZones(token, accountId)
-      for (const zone of zones) {
-        try {
-          const records = await deps.cloudflareApi.listDnsRecords(token, zone.id)
-          for (const record of records) {
-            if (record.content === target) {
-              await deps.cloudflareApi.deleteDnsRecord(token, zone.id, record.id)
-            }
-          }
-        } catch {
-          // Ignore zone-level errors
-        }
+    await removeDnsRecordsPointingAt(token, accountId, tunnel.cfTunnelId)
+    await deps.cloudflareApi.deleteTunnel(token, accountId, tunnel.cfTunnelId)
+    await deps.registry.remove(tunnel.id)
+  })
+
+  router.register('local.delete', async (input) => {
+    const tunnel = deps.registry.get(input.tunnelId)
+    if (tunnel.kind !== 'local' || !tunnel.cfTunnelId) {
+      throw new AppErrorException('VALIDATION', 'Tunnel is not a local tunnel')
+    }
+    await assertNotRunByService(tunnel)
+
+    if (deps.supervisor) {
+      const status = deps.supervisor.getStatus(tunnel.id)
+      if (status.state !== 'stopped') {
+        await deps.supervisor.stop(tunnel.id)
       }
-    } catch {
-      // Ignore zone listing errors
     }
 
-    await deps.cloudflareApi.deleteTunnel(token, accountId, tunnel.cfTunnelId)
+    // 1. Delete the tunnel in Cloudflare first. If this fails, nothing local has been touched.
+    const token = deps.secretStore ? await deps.secretStore.getToken() : null
+    const accountId = deps.store.get().account?.accountId
+    if (token && accountId && deps.cloudflareApi) {
+      await removeDnsRecordsPointingAt(token, accountId, tunnel.cfTunnelId)
+      try {
+        await deps.cloudflareApi.deleteTunnel(token, accountId, tunnel.cfTunnelId)
+      } catch (err) {
+        // already gone in Cloudflare is fine; anything else (e.g. live connections) must stop us
+        if (!(err instanceof AppErrorException && err.code === 'NOT_FOUND')) throw err
+      }
+    } else if (deps.localConfigStore) {
+      await deps.localConfigStore.deleteTunnelViaCli(tunnel.cfTunnelId)
+    } else {
+      throw new AppErrorException('INTERNAL', 'Cloudflare integration not configured')
+    }
+
+    // 2. Then its own files, and 3. the entry in the app.
+    await deps.localConfigStore?.deleteLocalFiles(tunnel)
     await deps.registry.remove(tunnel.id)
   })
 

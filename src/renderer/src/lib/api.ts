@@ -454,6 +454,16 @@ export function useRemoveRemoteHostname(): UseMutationResult<
   })
 }
 
+export function useDeleteLocalTunnel(): UseMutationResult<void, Error, { tunnelId: string }> {
+  const client = useQueryClient()
+  return useMutation({
+    mutationFn: (input) => call('local.delete', input),
+    onSuccess: () => {
+      client.invalidateQueries({ queryKey: ['tunnels'] })
+    }
+  })
+}
+
 export function useDeleteRemoteTunnel(): UseMutationResult<void, Error, { tunnelId: string }> {
   const client = useQueryClient()
   return useMutation({

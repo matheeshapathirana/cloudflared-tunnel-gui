@@ -155,6 +155,104 @@ ingress:
     await expect(store.restoreBackup(configFile, ownBackup)).resolves.toBeUndefined()
   })
 
+  describe('deleting a local tunnel', () => {
+    const tunnelId = '123e4567-e89b-12d3-a456-426614174000'
+    const otherId = '223e4567-e89b-12d3-a456-426614174111'
+
+    it('removes only this tunnel config, its backups and its credentials', async () => {
+      const config = path.join(tmpDir, 'mine.yml')
+      const otherConfig = path.join(tmpDir, 'other.yml')
+      await fs.promises.writeFile(config, sampleValidYaml, 'utf8')
+      await fs.promises.writeFile(otherConfig, sampleValidYaml, 'utf8')
+      await fs.promises.writeFile(path.join(tmpDir, `${tunnelId}.json`), '{}', 'utf8')
+      await fs.promises.writeFile(path.join(tmpDir, `${otherId}.json`), '{}', 'utf8')
+      await fs.promises.writeFile(path.join(tmpDir, 'cert.pem'), 'cert', 'utf8')
+      const myBackup = (await store.createBackup(config))!
+      const otherBackup = (await store.createBackup(otherConfig))!
+
+      const removed = await store.deleteLocalFiles({
+        cfTunnelId: tunnelId,
+        local: { configPath: config }
+      })
+
+      expect(removed.sort()).toEqual(
+        [config, myBackup, path.join(tmpDir, `${tunnelId}.json`)].map((p) => path.resolve(p)).sort()
+      )
+      // everything that is not this tunnel's stays
+      for (const keep of [
+        otherConfig,
+        otherBackup,
+        path.join(tmpDir, `${otherId}.json`),
+        path.join(tmpDir, 'cert.pem')
+      ]) {
+        expect(fs.existsSync(keep), keep).toBe(true)
+      }
+    })
+
+    it('does not fail when the files are already gone', async () => {
+      const removed = await store.deleteLocalFiles({
+        cfTunnelId: tunnelId,
+        local: { configPath: path.join(tmpDir, 'missing.yml') }
+      })
+      expect(removed).toEqual([])
+    })
+
+    it('never deletes outside the cloudflared directory or non-YAML files', async () => {
+      const outsideDir = await fs.promises.mkdtemp(path.join(os.tmpdir(), 'outside-'))
+      try {
+        const outside = path.join(outsideDir, 'precious.yml')
+        const cert = path.join(tmpDir, 'cert.pem')
+        await fs.promises.writeFile(outside, 'keep: me\n', 'utf8')
+        await fs.promises.writeFile(cert, 'cert', 'utf8')
+
+        for (const configPath of [outside, cert, path.join(tmpDir, '..', 'x.yml')]) {
+          await store.deleteLocalFiles({ local: { configPath } })
+        }
+        // a malformed tunnel id must not be turned into a path either
+        await store.deleteLocalFiles({ cfTunnelId: '..\\..\\cert', local: undefined })
+
+        expect(fs.existsSync(outside)).toBe(true)
+        expect(fs.existsSync(cert)).toBe(true)
+      } finally {
+        await fs.promises.rm(outsideDir, { recursive: true, force: true })
+      }
+    })
+
+    it('deletes the Cloudflare tunnel with the cloudflared CLI, only with a valid id and a cert', async () => {
+      const execFile = vi.fn(async () => ({ stdout: '', stderr: '' }))
+      const cliStore = new LocalConfigStore({
+        binaryManager: {
+          status: async () => ({
+            found: true as const,
+            path: 'C:\\bin\\cloudflared.exe',
+            source: 'path' as const,
+            version: '2026.10.0',
+            overrideInvalid: false
+          })
+        },
+        defaultConfigDir: tmpDir,
+        execFile
+      })
+
+      await expect(cliStore.deleteTunnelViaCli(tunnelId)).rejects.toMatchObject({
+        code: 'VALIDATION',
+        message: expect.stringContaining('cert.pem')
+      })
+      await fs.promises.writeFile(path.join(tmpDir, 'cert.pem'), 'cert', 'utf8')
+      await expect(cliStore.deleteTunnelViaCli('--force; calc')).rejects.toMatchObject({
+        code: 'VALIDATION'
+      })
+      expect(execFile).not.toHaveBeenCalled()
+
+      await cliStore.deleteTunnelViaCli(tunnelId)
+      expect(execFile).toHaveBeenCalledWith('C:\\bin\\cloudflared.exe', [
+        'tunnel',
+        'delete',
+        tunnelId
+      ])
+    })
+  })
+
   it('saves valid configuration and creates backup', async () => {
     const configFile = path.join(tmpDir, 'save-test.yml')
     await fs.promises.writeFile(configFile, sampleValidYaml, 'utf8')

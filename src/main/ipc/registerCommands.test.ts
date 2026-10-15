@@ -150,6 +150,8 @@ describe('registerCommands', () => {
       validateYaml: vi.fn(async () => ({ valid: true })),
       listBackups: vi.fn(async () => [sampleBackup]),
       restoreBackup: vi.fn(async () => {}),
+      deleteTunnelViaCli: vi.fn(async () => {}),
+      deleteLocalFiles: vi.fn(async () => ['removed']),
       checkCert: vi.fn(async () => ({ hasCert: true, certPath: '/path/cert.pem' })),
       login: vi.fn(async () => {}),
       createTunnel: vi.fn(async (name) => ({
@@ -956,6 +958,168 @@ describe('registerCommands', () => {
       expect(puts[1][3]).toEqual(original)
     })
 
+    describe('local.delete', () => {
+      const localTunnelId = sampleLocalTunnel.id
+
+      it('deletes in Cloudflare first (DNS, then the tunnel), then local files, then the list entry', async () => {
+        const order: string[] = []
+        const { router, mockCloudflareApi, mockLocalConfigStore, mockRegistry, mockSupervisor } =
+          setup({
+            cloudflareApi: {
+              listDnsRecords: vi.fn(async () => [
+                {
+                  id: 'rec-local',
+                  name: 'x.example.com',
+                  type: 'CNAME',
+                  content: `${sampleLocalTunnel.cfTunnelId}.cfargotunnel.com`,
+                  proxied: true
+                },
+                {
+                  id: 'rec-other',
+                  name: 'y.example.com',
+                  type: 'CNAME',
+                  content: 'someone-else.cfargotunnel.com',
+                  proxied: true
+                }
+              ]),
+              deleteDnsRecord: vi.fn(async (_t, _z, id) => {
+                order.push(`dns:${id}`)
+              }),
+              deleteTunnel: vi.fn(async () => {
+                order.push('tunnel')
+              })
+            }
+          })
+        ;(mockLocalConfigStore.deleteLocalFiles as ReturnType<typeof vi.fn>).mockImplementation(
+          async () => {
+            order.push('files')
+            return []
+          }
+        )
+        ;(mockRegistry.remove as ReturnType<typeof vi.fn>).mockImplementation(async () => {
+          order.push('registry')
+        })
+
+        const res = await router.dispatch('local.delete', { tunnelId: localTunnelId })
+
+        expect(res).toEqual({ ok: true, data: undefined })
+        expect(mockSupervisor.stop).toHaveBeenCalledWith(localTunnelId)
+        expect(mockCloudflareApi.deleteTunnel).toHaveBeenCalledWith(
+          'mock-token',
+          'acc-1',
+          sampleLocalTunnel.cfTunnelId
+        )
+        // only the record that points at this tunnel is removed
+        expect(order).toEqual(['dns:rec-local', 'tunnel', 'files', 'registry'])
+        expect(mockLocalConfigStore.deleteTunnelViaCli).not.toHaveBeenCalled()
+      })
+
+      it('leaves local files and the list entry alone if Cloudflare refuses the delete', async () => {
+        const { router, mockLocalConfigStore, mockRegistry } = setup({
+          cloudflareApi: {
+            deleteTunnel: vi.fn(async () => {
+              throw new AppErrorException('INTERNAL', 'Tunnel has active connections')
+            })
+          }
+        })
+        const res = await router.dispatch('local.delete', { tunnelId: localTunnelId })
+        expect(res).toMatchObject({
+          ok: false,
+          error: { message: expect.stringContaining('active connections') }
+        })
+        expect(mockLocalConfigStore.deleteLocalFiles).not.toHaveBeenCalled()
+        expect(mockRegistry.remove).not.toHaveBeenCalled()
+      })
+
+      it('carries on when the tunnel is already gone from Cloudflare', async () => {
+        const { router, mockLocalConfigStore, mockRegistry } = setup({
+          cloudflareApi: {
+            deleteTunnel: vi.fn(async () => {
+              throw new AppErrorException('NOT_FOUND', 'Tunnel not found')
+            })
+          }
+        })
+        const res = await router.dispatch('local.delete', { tunnelId: localTunnelId })
+        expect(res).toEqual({ ok: true, data: undefined })
+        expect(mockLocalConfigStore.deleteLocalFiles).toHaveBeenCalled()
+        expect(mockRegistry.remove).toHaveBeenCalledWith(localTunnelId)
+      })
+
+      it('uses the cloudflared CLI when no API token is connected', async () => {
+        const { router, mockCloudflareApi, mockLocalConfigStore, mockRegistry } = setup({
+          secretStore: { getToken: vi.fn(async () => null) }
+        })
+        const res = await router.dispatch('local.delete', { tunnelId: localTunnelId })
+        expect(res).toEqual({ ok: true, data: undefined })
+        expect(mockLocalConfigStore.deleteTunnelViaCli).toHaveBeenCalledWith(
+          sampleLocalTunnel.cfTunnelId
+        )
+        expect(mockCloudflareApi.deleteTunnel).not.toHaveBeenCalled()
+        expect(mockRegistry.remove).toHaveBeenCalledWith(localTunnelId)
+      })
+
+      it('refuses a tunnel that a Windows service owns or is running', async () => {
+        const first = setup()
+        ;(first.mockRegistry.get as ReturnType<typeof vi.fn>).mockReturnValueOnce({
+          ...sampleLocalTunnel,
+          runMode: 'service',
+          serviceName: 'cftunnel-home'
+        })
+        expect(
+          await first.router.dispatch('local.delete', { tunnelId: localTunnelId })
+        ).toMatchObject({
+          ok: false,
+          error: { code: 'VALIDATION', message: expect.stringContaining('cftunnel-home') }
+        })
+
+        const second = setup()
+        second.mockServiceManager.listServices.mockResolvedValueOnce([
+          {
+            serviceName: 'Cloudflared',
+            displayName: 'Cloudflared agent',
+            state: 'running',
+            kind: 'remote',
+            cfTunnelId: sampleLocalTunnel.cfTunnelId
+          }
+        ])
+        expect(
+          await second.router.dispatch('local.delete', { tunnelId: localTunnelId })
+        ).toMatchObject({
+          ok: false,
+          error: { code: 'VALIDATION', message: expect.stringContaining('Cloudflared') }
+        })
+
+        for (const s of [first, second]) {
+          expect(s.mockCloudflareApi.deleteTunnel).not.toHaveBeenCalled()
+          expect(s.mockLocalConfigStore.deleteLocalFiles).not.toHaveBeenCalled()
+          expect(s.mockRegistry.remove).not.toHaveBeenCalled()
+        }
+      })
+
+      it('only deletes local tunnels', async () => {
+        const { router, mockCloudflareApi } = setup()
+        for (const tunnelId of [sampleTunnel.id, sampleRemoteTunnel.id]) {
+          expect(await router.dispatch('local.delete', { tunnelId })).toMatchObject({
+            ok: false,
+            error: { code: 'VALIDATION' }
+          })
+        }
+        expect(mockCloudflareApi.deleteTunnel).not.toHaveBeenCalled()
+      })
+    })
+
+    it('remote.delete refuses a tunnel that a running Windows service owns', async () => {
+      const { router, mockCloudflareApi, mockRegistry } = setup()
+      // default mock: a running service already has the remote tunnel's Cloudflare id
+      const res = await router.dispatch('remote.delete', { tunnelId: sampleRemoteTunnel.id })
+      expect(res).toMatchObject({
+        ok: false,
+        error: { code: 'VALIDATION', message: expect.stringContaining('cftunnel-prod') }
+      })
+      expect(mockCloudflareApi.deleteTunnel).not.toHaveBeenCalled()
+      expect(mockRegistry.remove).not.toHaveBeenCalled()
+    })
+
     it('remote.removeHostname removes rule and deletes DNS CNAME', async () => {
       const { router, mockCloudflareApi } = setup()
       const res = await router.dispatch('remote.removeHostname', {
@@ -973,7 +1137,9 @@ describe('registerCommands', () => {
     })
 
     it('remote.delete stops running tunnel, deletes DNS records, deletes tunnel, and removes from registry', async () => {
-      const { router, mockSupervisor, mockCloudflareApi, mockRegistry } = setup()
+      const { router, mockSupervisor, mockCloudflareApi, mockRegistry, mockServiceManager } =
+        setup()
+      mockServiceManager.listServices.mockResolvedValueOnce([])
       const res = await router.dispatch('remote.delete', {
         tunnelId: sampleRemoteTunnel.id
       })

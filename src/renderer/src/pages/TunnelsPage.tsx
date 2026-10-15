@@ -21,6 +21,7 @@ import {
   useStopTunnel,
   useRefreshTunnels,
   useDeleteRemoteTunnel,
+  useDeleteLocalTunnel,
   useInstallService,
   useUninstallService,
   useStartService,
@@ -29,6 +30,7 @@ import {
 } from '@renderer/lib/api'
 import { PageContainer } from '@renderer/components/PageContainer'
 import { Button } from '@renderer/components/ui/button'
+import { Input } from '@renderer/components/ui/input'
 import {
   Card,
   CardContent,
@@ -120,6 +122,7 @@ export function TunnelsPage({ onNavigateToSettings }: TunnelsPageProps): React.J
   const stopMutation = useStopTunnel()
   const refreshMutation = useRefreshTunnels()
   const deleteRemoteMutation = useDeleteRemoteTunnel()
+  const deleteLocalMutation = useDeleteLocalTunnel()
   const installServiceMutation = useInstallService()
   const uninstallServiceMutation = useUninstallService()
   const startServiceMutation = useStartService()
@@ -134,6 +137,7 @@ export function TunnelsPage({ onNavigateToSettings }: TunnelsPageProps): React.J
   const [selectedHostnamesTunnel, setSelectedHostnamesTunnel] = useState<Tunnel | null>(null)
   const [tunnelToDelete, setTunnelToDelete] = useState<Tunnel | null>(null)
   const [deleteError, setDeleteError] = useState<string | null>(null)
+  const [deleteConfirmText, setDeleteConfirmText] = useState('')
   const [showCreateDialog, setShowCreateDialog] = useState(false)
 
   const handleToggle = async (tunnel: Tunnel): Promise<void> => {
@@ -189,12 +193,20 @@ export function TunnelsPage({ onNavigateToSettings }: TunnelsPageProps): React.J
     setDeleteError(null)
 
     try {
-      await deleteRemoteMutation.mutateAsync({ tunnelId: tunnelToDelete.id })
+      if (tunnelToDelete.kind === 'local') {
+        await deleteLocalMutation.mutateAsync({ tunnelId: tunnelToDelete.id })
+      } else {
+        await deleteRemoteMutation.mutateAsync({ tunnelId: tunnelToDelete.id })
+      }
       setTunnelToDelete(null)
     } catch (err) {
-      setDeleteError((err as Error).message || 'Failed to delete remote tunnel.')
+      setDeleteError((err as Error).message || `Failed to delete ${tunnelToDelete.kind} tunnel.`)
     }
   }
+
+  const isDeleting = deleteRemoteMutation.isPending || deleteLocalMutation.isPending
+  const deleteNeedsTypedName = tunnelToDelete?.kind === 'local'
+  const deleteConfirmed = !deleteNeedsTypedName || deleteConfirmText.trim() === tunnelToDelete?.name
 
   return (
     <PageContainer>
@@ -351,16 +363,17 @@ export function TunnelsPage({ onNavigateToSettings }: TunnelsPageProps): React.J
                       )}
                     </Button>
 
-                    {tunnel.kind === 'remote' && (
+                    {(tunnel.kind === 'remote' || tunnel.kind === 'local') && (
                       <Button
                         variant="ghost"
                         size="sm"
                         onClick={() => {
                           setDeleteError(null)
+                          setDeleteConfirmText('')
                           setTunnelToDelete(tunnel)
                         }}
                         className="h-8 px-2 text-neutral-400 hover:text-destructive hover:bg-destructive/10"
-                        aria-label={`Delete remote tunnel ${tunnel.name}`}
+                        aria-label={`Delete ${tunnel.kind} tunnel ${tunnel.name}`}
                       >
                         <Trash2 className="h-3.5 w-3.5" />
                       </Button>
@@ -411,15 +424,45 @@ export function TunnelsPage({ onNavigateToSettings }: TunnelsPageProps): React.J
                 <AlertTriangle className="size-5" />
               </div>
               <div>
-                <h3 className="text-base font-semibold text-neutral-100">Delete Remote Tunnel</h3>
+                <h3 className="text-base font-semibold text-neutral-100">
+                  Delete {tunnelToDelete.kind === 'local' ? 'Local' : 'Remote'} Tunnel
+                </h3>
                 <p className="text-xs text-neutral-400 mt-1">
-                  Are you sure you want to delete remote tunnel{' '}
+                  Are you sure you want to delete {tunnelToDelete.kind} tunnel{' '}
                   <strong className="text-neutral-200">{tunnelToDelete.name}</strong>?
                 </p>
-                <p className="text-xs text-neutral-400 mt-2">
-                  This will stop the tunnel, remove all associated DNS CNAME records, and
-                  permanently delete the tunnel in Cloudflare.
-                </p>
+                {tunnelToDelete.kind === 'local' ? (
+                  <>
+                    <p className="text-xs text-neutral-400 mt-2">
+                      This will stop the tunnel, remove DNS records that point at it (when a
+                      Cloudflare API token is connected), permanently delete the tunnel in
+                      Cloudflare, and delete these files:
+                    </p>
+                    <ul className="mt-1.5 list-disc space-y-0.5 pl-4 font-mono text-[11px] text-neutral-400 break-words">
+                      <li>{tunnelToDelete.local?.configPath}</li>
+                      <li>{tunnelToDelete.cfTunnelId}.json (credentials)</li>
+                    </ul>
+                    <p className="text-xs text-neutral-400 mt-2">
+                      This cannot be undone. Type{' '}
+                      <strong className="text-neutral-200">{tunnelToDelete.name}</strong> to
+                      confirm.
+                    </p>
+                    <Input
+                      value={deleteConfirmText}
+                      onChange={(e) => setDeleteConfirmText(e.target.value)}
+                      placeholder="Type the tunnel name"
+                      aria-label="Type the tunnel name to confirm"
+                      disabled={isDeleting}
+                      className="mt-2 h-8 font-mono text-xs"
+                      autoFocus
+                    />
+                  </>
+                ) : (
+                  <p className="text-xs text-neutral-400 mt-2">
+                    This will stop the tunnel, remove all associated DNS CNAME records, and
+                    permanently delete the tunnel in Cloudflare.
+                  </p>
+                )}
               </div>
             </div>
 
@@ -433,7 +476,7 @@ export function TunnelsPage({ onNavigateToSettings }: TunnelsPageProps): React.J
                   setTunnelToDelete(null)
                   setDeleteError(null)
                 }}
-                disabled={deleteRemoteMutation.isPending}
+                disabled={isDeleting}
               >
                 Cancel
               </Button>
@@ -441,10 +484,10 @@ export function TunnelsPage({ onNavigateToSettings }: TunnelsPageProps): React.J
                 variant="destructive"
                 size="sm"
                 onClick={handleConfirmDelete}
-                disabled={deleteRemoteMutation.isPending}
+                disabled={isDeleting || !deleteConfirmed}
                 className="gap-1.5"
               >
-                {deleteRemoteMutation.isPending ? (
+                {isDeleting ? (
                   <Loader2 className="size-3.5 animate-spin" />
                 ) : (
                   <Trash2 className="size-3.5" />

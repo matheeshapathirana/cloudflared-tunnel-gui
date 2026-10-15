@@ -66,6 +66,7 @@ export const commands = {
   ),
   'local.login': cmd(z.void(), z.void()),
   'local.create': cmd(z.object({ name: z.string().trim().min(1).max(80) }), TunnelSchema),
+  'local.delete': cmd(z.object({ tunnelId: z.string() }), z.void()),
   'account.status': cmd(z.void(), AccountStatusSchema),
   'account.setToken': cmd(
     z.object({ token: z.string().min(1), accountId: z.string().optional() }),

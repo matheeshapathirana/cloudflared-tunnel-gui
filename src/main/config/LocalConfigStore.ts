@@ -7,6 +7,8 @@ import type { BinaryStatus, IngressRule, BackupInfo, Tunnel } from '../../shared
 import { AppErrorException } from '../../shared/result'
 import { atomicWrite } from '../util/atomicWrite'
 
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+
 export interface LocalConfigStoreDeps {
   binaryManager: { status: () => Promise<BinaryStatus> }
   defaultConfigDir?: string
@@ -345,5 +347,68 @@ export class LocalConfigStore {
       autoStart: false,
       local: { configPath }
     }
+  }
+
+  /**
+   * Deletes the tunnel in Cloudflare with `cloudflared tunnel delete` (uses cert.pem, so it works
+   * without an API token). Cloudflare refuses while the tunnel still has live connections.
+   */
+  public async deleteTunnelViaCli(cfTunnelId: string): Promise<void> {
+    if (!UUID_RE.test(cfTunnelId)) {
+      throw new AppErrorException('VALIDATION', 'Invalid Cloudflare tunnel id')
+    }
+    const cert = await this.checkCert()
+    if (!cert.hasCert) {
+      throw new AppErrorException(
+        'VALIDATION',
+        'Cloudflare certificate (cert.pem) not found. Log in first, or connect a Cloudflare API token in Settings.'
+      )
+    }
+    const binStatus = await this.deps.binaryManager.status()
+    if (!binStatus.found) {
+      throw new AppErrorException('BINARY_NOT_FOUND', 'cloudflared binary not found')
+    }
+    await this.execFileFn(binStatus.path, ['tunnel', 'delete', cfTunnelId])
+  }
+
+  /**
+   * Removes only this tunnel's own files from the cloudflared config directory: its config file
+   * (and that file's backups) and its <tunnel-id>.json credentials. Never touches cert.pem, other
+   * tunnels' files, or anything outside the config directory. Returns the files removed.
+   */
+  public async deleteLocalFiles(tunnel: {
+    cfTunnelId?: string
+    local?: { configPath: string }
+  }): Promise<string[]> {
+    const dir = path.resolve(this.configDir)
+    const sameDir = (a: string): boolean => path.resolve(a).toLowerCase() === dir.toLowerCase()
+    const targets: string[] = []
+
+    const configPath = tunnel.local?.configPath
+    if (configPath && /\.ya?ml$/i.test(configPath) && sameDir(path.dirname(configPath))) {
+      targets.push(path.resolve(configPath))
+      const backupsDir = path.join(dir, 'backups')
+      const prefix = `${path.basename(configPath).toLowerCase()}.bak-`
+      const backups = await fs.promises.readdir(backupsDir).catch(() => [] as string[])
+      for (const file of backups) {
+        if (file.toLowerCase().startsWith(prefix) && /\.bak-\d+\.yml$/i.test(file)) {
+          targets.push(path.join(backupsDir, file))
+        }
+      }
+    }
+    if (tunnel.cfTunnelId && UUID_RE.test(tunnel.cfTunnelId)) {
+      targets.push(path.join(dir, `${tunnel.cfTunnelId}.json`))
+    }
+
+    const removed: string[] = []
+    for (const target of targets) {
+      try {
+        await fs.promises.unlink(target)
+        removed.push(target)
+      } catch (err) {
+        if ((err as { code?: string }).code !== 'ENOENT') throw err
+      }
+    }
+    return removed
   }
 }
