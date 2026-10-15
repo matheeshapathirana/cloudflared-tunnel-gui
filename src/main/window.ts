@@ -30,7 +30,7 @@ export function createMainWindow(options?: { showOnReady?: boolean }): BrowserWi
     // match the theme background so a dark window doesn't flash white before first paint
     backgroundColor: nativeTheme.shouldUseDarkColors ? '#09090b' : '#ffffff',
     autoHideMenuBar: true,
-    ...(process.platform === 'linux' ? { icon } : {}),
+    icon,
     webPreferences: {
       preload: join(__dirname, '../preload/index.js'),
       sandbox: true,

@@ -2,6 +2,8 @@ import { app, BrowserWindow, ipcMain, nativeTheme } from 'electron'
 import { join } from 'node:path'
 import { electronApp, optimizer } from '@electron-toolkit/utils'
 import { EVENT_CHANNEL } from '@shared/ipc'
+import trayIcon16 from '../../resources/tray-16.png?asset'
+import trayIcon32 from '../../resources/tray-32.png?asset'
 import { createMainWindow, isTrustedSender } from './window'
 import { IpcRouter } from './ipc/IpcRouter'
 import { registerCommands } from './ipc/registerCommands'
@@ -200,20 +202,20 @@ if (!gotTheLock) {
       mainWindow = null
     })
 
+    const revealWindow = (): void => {
+      if (mainWindow) {
+        if (mainWindow.isMinimized()) mainWindow.restore()
+        mainWindow.show()
+        mainWindow.focus()
+      }
+    }
+
     trayController = new TrayController({
-      onOpen: () => {
-        if (mainWindow) {
-          if (mainWindow.isMinimized()) mainWindow.restore()
-          mainWindow.show()
-          mainWindow.focus()
-        }
-      },
-      onNavigate: () => {
-        if (mainWindow) {
-          if (mainWindow.isMinimized()) mainWindow.restore()
-          mainWindow.show()
-          mainWindow.focus()
-        }
+      iconPaths: { x1: trayIcon16, x2: trayIcon32 },
+      onOpen: revealWindow,
+      onNavigate: (page) => {
+        revealWindow()
+        mainWindow?.webContents.send(EVENT_CHANNEL, { name: 'app:navigate', payload: page })
       },
       onQuit: () => {
         isQuitting = true

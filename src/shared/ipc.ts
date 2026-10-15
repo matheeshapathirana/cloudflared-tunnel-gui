@@ -13,7 +13,8 @@ import {
   RemoteHostnameSchema,
   CloudflaredServiceSchema,
   BinaryReleaseSchema,
-  DownloadProgressPayloadSchema
+  DownloadProgressPayloadSchema,
+  AppPageSchema
 } from './schemas'
 
 const cmd = <I extends z.ZodType, O extends z.ZodType>(
@@ -131,7 +132,8 @@ export const events = {
   'registry:changed': z.array(TunnelSchema),
   'tunnel:status': z.object({ id: z.string(), status: TunnelStatusSchema }),
   'tunnel:log': z.object({ id: z.string(), line: z.string() }),
-  'binary:downloadProgress': DownloadProgressPayloadSchema
+  'binary:downloadProgress': DownloadProgressPayloadSchema,
+  'app:navigate': AppPageSchema
 } as const
 
 export type EventName = keyof typeof events

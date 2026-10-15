@@ -1,6 +1,7 @@
 import * as React from 'react'
 import { Radio, Zap, Settings } from 'lucide-react'
 import { cn } from '@renderer/lib/utils'
+import logo from '../assets/logo.svg'
 
 export type PageId = 'tunnels' | 'quick-share' | 'settings'
 
@@ -38,9 +39,7 @@ export function AppSidebar({
       <div className="flex flex-col gap-4">
         {/* App Title */}
         <div className="flex items-center justify-center lg:justify-start gap-2.5 px-0 lg:px-3 py-3 rounded-lg bg-card border border-border/50 shadow-xs">
-          <div className="flex items-center justify-center size-8 rounded-md bg-primary text-primary-foreground">
-            <Radio className="size-4.5" />
-          </div>
+          <img src={logo} alt="" className="size-8 shrink-0" />
           <div className="hidden lg:flex flex-col min-w-0">
             <span className="font-semibold text-sm leading-tight truncate">Cloudflared Tunnel</span>
             <span className="text-xs text-muted-foreground leading-tight truncate">

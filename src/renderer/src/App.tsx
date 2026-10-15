@@ -11,6 +11,9 @@ import { SettingsPage } from './pages/SettingsPage'
 function AppContent(): React.JSX.Element {
   const [activePage, setActivePage] = useState<PageId>('tunnels')
 
+  // the tray menu can ask for a specific page (e.g. "Quick share…")
+  useEffect(() => window.api.on('app:navigate', (page) => setActivePage(page)), [])
+
   useEffect(() => {
     const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)')
     const updateTheme = (e: MediaQueryListEvent | MediaQueryList): void => {

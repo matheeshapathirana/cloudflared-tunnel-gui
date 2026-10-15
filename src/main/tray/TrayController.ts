@@ -1,11 +1,14 @@
+import fs from 'node:fs'
 import { Menu, Tray, nativeImage } from 'electron'
-import type { Tunnel, TunnelStatus } from '../../shared/schemas'
+import type { AppPage, Tunnel, TunnelStatus } from '../../shared/schemas'
 
 export interface TrayControllerDeps {
   onOpen: () => void
-  onNavigate: (page: string) => void
+  onNavigate: (page: AppPage) => void
   onQuit: () => void
   onToggleTunnel: (id: string, start: boolean) => void
+  /** PNG files for 100% (16px) and 200% (32px) display scaling. */
+  iconPaths: { x1: string; x2: string }
 }
 
 export class TrayController {
@@ -13,14 +16,29 @@ export class TrayController {
 
   constructor(private deps: TrayControllerDeps) {}
 
+  private buildIcon(): Electron.NativeImage {
+    const image = nativeImage.createFromPath(this.deps.iconPaths.x1)
+    try {
+      image.addRepresentation({
+        scaleFactor: 2,
+        buffer: fs.readFileSync(this.deps.iconPaths.x2)
+      })
+    } catch {
+      // the 16px image alone still works; it is just softer on high-DPI displays
+    }
+    return image
+  }
+
   public init(): void {
     if (this.tray) return
 
-    // 16x16 transparent or basic fallback icon
-    const icon = nativeImage.createEmpty()
     try {
-      this.tray = new Tray(icon)
+      this.tray = new Tray(this.buildIcon())
       this.tray.setToolTip('Cloudflared Tunnel GUI')
+      // single click is how Windows tray apps usually reopen their window
+      this.tray.on('click', () => {
+        this.deps.onOpen()
+      })
       this.tray.on('double-click', () => {
         this.deps.onOpen()
       })
@@ -58,8 +76,7 @@ export class TrayController {
       {
         label: 'Quick share…',
         click: () => {
-          this.deps.onNavigate('quick')
-          this.deps.onOpen()
+          this.deps.onNavigate('quick-share')
         }
       },
       { type: 'separator' },

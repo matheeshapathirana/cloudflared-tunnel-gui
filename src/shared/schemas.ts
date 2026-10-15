@@ -100,6 +100,10 @@ export const TunnelStatusSchema = z.discriminatedUnion('state', [
 
 export type TunnelStatus = z.infer<typeof TunnelStatusSchema>
 
+export const AppPageSchema = z.enum(['tunnels', 'quick-share', 'settings'])
+
+export type AppPage = z.infer<typeof AppPageSchema>
+
 export const ThemePreferenceSchema = z.enum(['system', 'light', 'dark'])
 
 export type ThemePreference = z.infer<typeof ThemePreferenceSchema>
