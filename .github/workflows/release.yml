@@ -36,7 +36,30 @@ jobs:
       - run: npm run test:scripts
       - run: npm run build
 
+      # electron-builder uploads the installer and the blockmap in parallel; if the release does not
+      # exist yet, each upload creates its own draft and the assets end up split across two drafts.
+      # Creating the draft up front means both uploads find it.
+      - name: Create the draft release if it does not exist
+        shell: bash
+        run: gh release view "$TAG" >/dev/null 2>&1 || gh release create "$TAG" --draft --verify-tag --title "${TAG#v}" --generate-notes
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
+          TAG: ${{ github.ref_name }}
+
       - name: Build installer and publish draft release
         run: npx electron-builder --win --publish always
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Verify the draft release has the installer, blockmap and latest.yml
+        shell: bash
+        run: |
+          assets=$(gh release view "$TAG" --json assets --jq '.assets[].name')
+          for f in "cloudflared-tunnel-gui-${TAG#v}-setup.exe" "cloudflared-tunnel-gui-${TAG#v}-setup.exe.blockmap" latest.yml; do
+            echo "$assets" | grep -qx "$f" || { echo "missing release asset: $f"; exit 1; }
+          done
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
+          TAG: ${{ github.ref_name }}
