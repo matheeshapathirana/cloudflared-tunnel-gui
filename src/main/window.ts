@@ -2,12 +2,7 @@ import { BrowserWindow, shell, type IpcMainInvokeEvent } from 'electron'
 import { join } from 'path'
 import { is } from '@electron-toolkit/utils'
 import icon from '../../resources/icon.png?asset'
-
-const ALLOWED_EXTERNAL_HOSTS = new Set([
-  'dash.cloudflare.com',
-  'developers.cloudflare.com',
-  'github.com'
-])
+import { isAllowedExternalUrl } from './externalLinks'
 
 export function isTrustedSender(event: IpcMainInvokeEvent): boolean {
   const url = event.senderFrame?.url
@@ -49,13 +44,8 @@ export function createMainWindow(options?: { showOnReady?: boolean }): BrowserWi
   })
 
   mainWindow.webContents.setWindowOpenHandler((details) => {
-    try {
-      const parsed = new URL(details.url)
-      if (parsed.protocol === 'https:' && ALLOWED_EXTERNAL_HOSTS.has(parsed.hostname)) {
-        shell.openExternal(details.url)
-      }
-    } catch {
-      // Ignore invalid URLs
+    if (isAllowedExternalUrl(details.url)) {
+      void shell.openExternal(details.url)
     }
     return { action: 'deny' }
   })
