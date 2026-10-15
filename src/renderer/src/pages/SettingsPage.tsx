@@ -599,7 +599,7 @@ export function SettingsPage(): React.JSX.Element {
           </CardDescription>
         </CardHeader>
         <CardContent className="flex flex-col gap-3">
-          <ThemeSwitcher variant="labelled" />
+          <ThemeSwitcher />
           <p className="text-xs text-muted-foreground">
             <strong className="font-medium text-foreground">System</strong> follows the Windows app
             mode setting and updates as soon as you change it there.
