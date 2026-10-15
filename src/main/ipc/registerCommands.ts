@@ -787,6 +787,7 @@ export function registerCommands(router: IpcRouter, deps: RegisterCommandsDeps):
       startup: state.startup,
       binary: state.binary,
       theme: state.theme,
+      updates: state.updates,
       appVersion: deps.appVersion
     }
   }
@@ -802,6 +803,9 @@ export function registerCommands(router: IpcRouter, deps: RegisterCommandsDeps):
       }
       if (input.theme) {
         s.theme = input.theme
+      }
+      if (input.updates) {
+        s.updates = { ...s.updates, ...input.updates }
       }
     })
     if (input.theme) {

@@ -555,6 +555,7 @@ describe('registerCommands', () => {
         startup: { launchAtLogin: false, startHidden: true },
         binary: { overridePath: undefined },
         theme: 'system',
+        updates: { autoCheck: true },
         appVersion: '1.2.3'
       }
     })
@@ -571,9 +572,19 @@ describe('registerCommands', () => {
         startup: { launchAtLogin: true, startHidden: true },
         binary: { overridePath: undefined },
         theme: 'system',
+        updates: { autoCheck: true },
         appVersion: '1.2.3'
       }
     })
+  })
+
+  it('app.setSettings persists updates.autoCheck', async () => {
+    const { router, mockStore } = setup()
+    const res = await router.dispatch('app.setSettings', { updates: { autoCheck: false } })
+    expect(res).toMatchObject({ ok: true, data: { updates: { autoCheck: false } } })
+    expect(mockStore.get?.().updates).toEqual({ autoCheck: false })
+    const persisted = await router.dispatch('app.getSettings', undefined)
+    expect(persisted).toMatchObject({ ok: true, data: { updates: { autoCheck: false } } })
   })
 
   it('app.setSettings saves the theme and applies it to the native window theme', async () => {

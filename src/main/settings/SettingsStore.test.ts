@@ -26,6 +26,20 @@ describe('SettingsStore', () => {
     expect(store.get()).toEqual(defaultAppState())
   })
 
+  it('loads a state file written before the updates setting existed', async () => {
+    const filePath = path.join(tempDir, 'state.json')
+    const legacy: Record<string, unknown> = { ...defaultAppState() }
+    delete legacy.updates
+    await fs.promises.writeFile(filePath, JSON.stringify(legacy), 'utf8')
+
+    const store = new SettingsStore(filePath)
+    await store.load()
+
+    expect(store.get().updates).toEqual({ autoCheck: true })
+    const files = await fs.promises.readdir(tempDir)
+    expect(files.some((f) => f.startsWith('state.json.corrupt-'))).toBe(false)
+  })
+
   it('corrupt file is renamed and defaults are used', async () => {
     const filePath = path.join(tempDir, 'state.json')
     await fs.promises.writeFile(filePath, '{"version": 999, "invalid": true}', 'utf8')
