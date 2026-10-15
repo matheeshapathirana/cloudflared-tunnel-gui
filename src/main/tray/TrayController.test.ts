@@ -85,6 +85,7 @@ describe('TrayController', () => {
   const onNavigate = vi.fn()
   const onQuit = vi.fn()
   const onToggleTunnel = vi.fn()
+  const onInstallUpdate = vi.fn()
   let controller: TrayController
 
   beforeEach(() => {
@@ -96,7 +97,14 @@ describe('TrayController', () => {
     electron.destroyed = 0
     electron.tooltip = ''
     electron.image = { isEmpty: () => false, reps: [], path: '' }
-    controller = new TrayController({ onOpen, onNavigate, onQuit, onToggleTunnel, iconPaths })
+    controller = new TrayController({
+      onOpen,
+      onNavigate,
+      onQuit,
+      onToggleTunnel,
+      onInstallUpdate,
+      iconPaths
+    })
   })
 
   it('shows the real app icon, with a 2x version for high-DPI displays', () => {
@@ -123,6 +131,7 @@ describe('TrayController', () => {
       onNavigate,
       onQuit,
       onToggleTunnel,
+      onInstallUpdate,
       iconPaths: { x1: iconPaths.x1, x2: path.join(resources, 'does-not-exist.png') }
     })
     controller.init()
@@ -181,5 +190,54 @@ describe('TrayController', () => {
     controller.init()
     controller.destroy()
     expect(electron.destroyed).toBe(1)
+  })
+
+  describe('restart-to-update item', () => {
+    const hasItem = (label: string): boolean => electron.template.some((i) => i.label === label)
+
+    it('is absent by default', () => {
+      controller.init()
+      expect(electron.template.some((i) => /Restart to update/.test(i.label ?? ''))).toBe(false)
+    })
+
+    it('appears above Quit when an update is ready and installs on click', () => {
+      controller.init()
+      controller.setUpdateReady('1.2.0')
+      const label = 'Restart to update to v1.2.0'
+      expect(hasItem(label)).toBe(true)
+      const labels = electron.template.map((i) => i.label)
+      expect(labels.indexOf(label)).toBeLessThan(labels.indexOf('Quit'))
+      item(label).click!()
+      expect(onInstallUpdate).toHaveBeenCalledOnce()
+    })
+
+    it('is removed by setUpdateReady(null)', () => {
+      controller.init()
+      controller.setUpdateReady('1.2.0')
+      controller.setUpdateReady(null)
+      expect(electron.template.some((i) => /Restart to update/.test(i.label ?? ''))).toBe(false)
+    })
+
+    it('survives a later updateMenu call', () => {
+      controller.init()
+      controller.setUpdateReady('1.2.0')
+      controller.updateMenu([tunnel('11111111-1111-4111-8111-111111111111', 'One')], new Map())
+      expect(hasItem('Restart to update to v1.2.0')).toBe(true)
+      expect(hasItem('Quit')).toBe(true)
+    })
+
+    it('rebuilds from the last tunnels given to updateMenu', () => {
+      controller.init()
+      controller.updateMenu([tunnel('11111111-1111-4111-8111-111111111111', 'One')], new Map())
+      controller.setUpdateReady('1.2.0')
+      expect(electron.template.some((i) => /One/.test(i.label ?? ''))).toBe(true)
+    })
+
+    it('does not throw before init(), and the menu built by init includes the item', () => {
+      expect(() => controller.setUpdateReady('1.2.0')).not.toThrow()
+      expect(electron.template).toEqual([])
+      controller.init()
+      expect(hasItem('Restart to update to v1.2.0')).toBe(true)
+    })
   })
 })

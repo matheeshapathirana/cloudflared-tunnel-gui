@@ -95,6 +95,11 @@ if (!gotTheLock) {
     }
   })
 
+  const readyUpdateVersion = (): string | null => {
+    const { status } = updateManager.getState()
+    return status.state === 'ready' ? status.version : null
+  }
+
   const router = new IpcRouter()
   registerCommands(router, {
     registry,
@@ -142,6 +147,7 @@ if (!gotTheLock) {
       name: 'update:state',
       payload
     })
+    trayController?.setUpdateReady(readyUpdateVersion())
   })
 
   supervisor.on('status', ({ id, status }) => {
@@ -252,11 +258,20 @@ if (!gotTheLock) {
         } catch {
           // Ignore toggle error
         }
+      },
+      onInstallUpdate: () => {
+        try {
+          updateManager.install()
+        } catch {
+          // not ready: ignore
+        }
       }
     })
 
     trayController.init()
     trayController.updateMenu(registry.list(), supervisor.getAllStatuses())
+    // an update may have become ready before the tray existed
+    trayController.setUpdateReady(readyUpdateVersion())
 
     app.on('activate', () => {
       if (BrowserWindow.getAllWindows().length === 0) {
