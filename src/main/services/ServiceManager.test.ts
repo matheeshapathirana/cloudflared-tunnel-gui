@@ -16,7 +16,6 @@ import {
   generateUninstallScript,
   generateControlScript,
   generateAdoptScript,
-  generateUpdateBinaryScript,
   PRELUDE,
   ServiceManager
 } from './ServiceManager'
@@ -214,6 +213,7 @@ describe('PowerShell script generators', () => {
     expect(managed).toContain("Stop-Svc 'cftunnel-old'")
     expect(managed).toContain("sc.exe delete 'cftunnel-old'")
     expect(managed).toContain("tokens\\cftunnel-old' -Force")
+    expect(managed).toContain("logs\\cftunnel-old.log' -Force")
 
     const stock = generateUninstallScript({ serviceName: 'Cloudflared', programDataDir: PD })
     expect(stock).toContain("sc.exe delete 'Cloudflared'")
@@ -243,29 +243,6 @@ describe('PowerShell script generators', () => {
     expect(script).toContain('$orig = $svc.PathName')
     expect(script).toContain('PathName = $orig')
     expect(script).toContain('$wasRunning')
-  })
-
-  it('update-binary stops, copies, re-verifies the signature, restarts, and restarts again on failure', () => {
-    const script = generateUpdateBinaryScript({
-      sourceBinaryPath: 'C:\\app\\new-cloudflared.exe',
-      programDataDir: PD,
-      servicesToRestart: ['cftunnel-1', 'cftunnel-2']
-    })
-    expect(script).toContain("$names = @('cftunnel-1', 'cftunnel-2')")
-    const stopAt = script.indexOf('Stop-Svc $n')
-    const copyAt = script.indexOf('Copy-Item')
-    const signedAt = script.lastIndexOf('Assert-Signed')
-    const startAt = script.indexOf('Start-Service -Name $n')
-    expect(stopAt).toBeLessThan(copyAt)
-    expect(copyAt).toBeLessThan(signedAt)
-    expect(signedAt).toBeLessThan(startAt)
-    expect(() =>
-      generateUpdateBinaryScript({
-        sourceBinaryPath: 'C:\\app\\x.exe',
-        programDataDir: PD,
-        servicesToRestart: ['Cloudflared']
-      })
-    ).toThrow()
   })
 
   // Parse-only check with PowerShell's own parser: catches quoting and syntax mistakes without
@@ -320,11 +297,6 @@ describe('PowerShell script generators', () => {
           currentCommandLine: STOCK_SERVICE_CMD,
           port: 40502,
           programDataDir: PD
-        }),
-        update: generateUpdateBinaryScript({
-          sourceBinaryPath: 'C:\\app\\cloudflared.exe',
-          programDataDir: PD,
-          servicesToRestart: ['cftunnel-1']
         })
       }
 

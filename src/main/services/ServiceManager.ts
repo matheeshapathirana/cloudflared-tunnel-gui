@@ -384,8 +384,10 @@ export function generateUninstallScript(opts: {
   assertServiceName(opts.serviceName)
   const d = dirs(opts.programDataDir)
   const name = psq(opts.serviceName)
+  // only for services this app created: its token file and its own log file
   const tokenCleanup = isManagedServiceName(opts.serviceName)
-    ? `\n  Remove-Item -LiteralPath ${psq(path.win32.join(d.tokens, opts.serviceName))} -Force -ErrorAction SilentlyContinue`
+    ? `\n  Remove-Item -LiteralPath ${psq(path.win32.join(d.tokens, opts.serviceName))} -Force -ErrorAction SilentlyContinue` +
+      `\n  Remove-Item -LiteralPath ${psq(path.win32.join(d.logs, `${opts.serviceName}.log`))} -Force -ErrorAction SilentlyContinue`
     : ''
 
   return `${PRELUDE}
@@ -467,36 +469,6 @@ try {
     }
     if ($wasRunning) { Start-Service -Name $name }
   } catch {}
-  exit 1
-}
-`
-}
-
-/**
- * Pure generator: replaces the service binary and restarts the services that use it.
- */
-export function generateUpdateBinaryScript(opts: {
-  sourceBinaryPath: string
-  programDataDir: string
-  servicesToRestart: string[]
-}): string {
-  const d = dirs(opts.programDataDir)
-  const source = assertWinPath(opts.sourceBinaryPath, 'Source binary')
-  opts.servicesToRestart.forEach(assertManagedServiceName)
-  const list = `@(${opts.servicesToRestart.map(psq).join(', ')})`
-
-  return `${PRELUDE}
-$names = ${list}
-try {
-  Protect-Dir ${psq(d.base)} $true
-  Protect-Dir ${psq(d.bin)} $true
-  foreach ($n in $names) { Stop-Svc $n }
-  Copy-Item -LiteralPath ${psq(source)} -Destination ${psq(d.svcBin)} -Force
-  Assert-Signed ${psq(d.svcBin)}
-  foreach ($n in $names) { Start-Service -Name $n }
-  exit 0
-} catch {
-  foreach ($n in $names) { try { Start-Service -Name $n } catch {} }
   exit 1
 }
 `

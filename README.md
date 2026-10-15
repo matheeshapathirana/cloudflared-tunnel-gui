@@ -17,7 +17,7 @@ It supports all three kinds of tunnel in one list:
 - Remote tunnels: create and delete tunnels, add and remove public hostnames (the routing rule and the DNS record together).
 - Local tunnels: edit ingress rules in a form or as raw YAML (validated by `cloudflared` before saving, with automatic backups you can restore), create and delete tunnels.
 - Import: finds your existing tunnels from `~/.cloudflared`, the Cloudflare API and installed `cloudflared` Windows services.
-- Windows services: see, start, stop, install and uninstall `cloudflared` services (each action asks for administrator approval).
+- Windows services: see, start, stop, restart, install and uninstall `cloudflared` services, and "adopt" an existing one so the app can show its live status and logs (each action asks for administrator approval).
 - Tray icon, close-to-tray, launch at login and auto-start for chosen tunnels.
 - Detects `cloudflared`, shows its version, and can download updates (checked against its published SHA-256 and Cloudflare's code signature).
 - Light, dark, or follow-Windows theme.
@@ -76,7 +76,8 @@ Deleting a tunnel is permanent. For a local tunnel the app deletes the tunnel in
 ## Status and known limitations
 
 - Windows only.
-- The **Windows service** actions (install, uninstall, adopt, update binary) generate administrator scripts that are unit-tested and syntax-checked, and their safety checks (code-signature and folder-ownership) are tested against real files, but they have **not yet been run end to end against the Windows Service Control Manager**. Treat them as experimental and try them on a throwaway tunnel first.
+- The **Windows service** actions were tested end to end on Windows 11 with disposable services: install (with the token kept in an administrators-only file), restart, adopt (including a service shaped like `cloudflared service install`, which keeps its original arguments), uninstall, and refusing a duplicate. They have not been tested on other Windows versions, and the tunnel-token file's restricted permissions mean the app itself cannot read it back, by design.
+- Service log files (`--logfile`) are not rotated; a long-running service's log keeps growing until the service is uninstalled.
 - No auto-update for the app itself.
 
 ## Project layout
