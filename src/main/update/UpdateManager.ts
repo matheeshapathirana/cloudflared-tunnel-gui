@@ -44,7 +44,9 @@ function swallowDownloadRejection(result: unknown): void {
 /** Turns an updater error into a short, user-facing message (no stacks or URLs for known cases). */
 function toErrorMessage(err: unknown): string {
   const raw = err instanceof Error ? err.message : String(err)
-  if (/Cannot find latest\.yml|404/.test(raw)) return 'No update information found yet.'
+  if (/Cannot find latest\.yml|Unable to find latest version|404/.test(raw)) {
+    return 'No update information found yet.'
+  }
   const firstLine = raw.split('\n')[0].trim()
   return firstLine ? firstLine.slice(0, MAX_MESSAGE_LENGTH) : 'Update check failed.'
 }
