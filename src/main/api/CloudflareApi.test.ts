@@ -128,6 +128,67 @@ describe('CloudflareApi', () => {
       ])
     })
 
+    it('listAccounts falls back to the accounts of its zones when /accounts is empty', async () => {
+      // a token without account-read access: /accounts is empty, but zones carry their account
+      const mockFetch = vi.fn(async (url: string) =>
+        url.endsWith('/accounts')
+          ? jsonResponse({ success: true, result: [] })
+          : jsonResponse({
+              success: true,
+              result: [
+                { id: 'z1', name: 'a.com', account: { id: 'acc-9', name: 'Home' } },
+                { id: 'z2', name: 'b.com', account: { id: 'acc-9', name: 'Home' } },
+                { id: 'z3', name: 'c.com', account: { id: 'acc-7' } },
+                { id: 'z4', name: 'no-account.com' }
+              ]
+            })
+      )
+      const api = new CloudflareApi(mockFetch as unknown as typeof fetch)
+
+      expect(await api.listAccounts(token)).toEqual([
+        { id: 'acc-9', name: 'Home', type: 'standard' },
+        { id: 'acc-7', name: 'acc-7', type: 'standard' }
+      ])
+      expect(mockFetch).toHaveBeenCalledWith(
+        'https://api.cloudflare.com/client/v4/zones?status=active&per_page=50',
+        expect.anything()
+      )
+    })
+
+    it('listAccounts also falls back when /accounts is forbidden', async () => {
+      const mockFetch = vi.fn(async (url: string) =>
+        url.endsWith('/accounts')
+          ? jsonResponse(
+              { success: false, errors: [{ message: 'Authentication error' }] },
+              403,
+              'Forbidden'
+            )
+          : jsonResponse({
+              success: true,
+              result: [{ id: 'z1', name: 'a.com', account: { id: 'acc-9', name: 'Home' } }]
+            })
+      )
+      const api = new CloudflareApi(mockFetch as unknown as typeof fetch)
+      expect(await api.listAccounts(token)).toEqual([
+        { id: 'acc-9', name: 'Home', type: 'standard' }
+      ])
+    })
+
+    it('listAccounts does not call /zones when /accounts already answers', async () => {
+      const mockFetch = vi.fn(async () =>
+        jsonResponse({ success: true, result: [{ id: 'acc-1', name: 'Personal' }] })
+      )
+      const api = new CloudflareApi(mockFetch as unknown as typeof fetch)
+      await api.listAccounts(token)
+      expect(mockFetch).toHaveBeenCalledTimes(1)
+    })
+
+    it('listAccounts returns nothing when the token has no accounts and no zones', async () => {
+      const mockFetch = vi.fn(async () => jsonResponse({ success: true, result: [] }))
+      const api = new CloudflareApi(mockFetch as unknown as typeof fetch)
+      expect(await api.listAccounts(token)).toEqual([])
+    })
+
     it('listZones queries zones for specific account with status=active', async () => {
       const mockFetch = vi.fn().mockResolvedValue(
         jsonResponse({
@@ -444,7 +505,8 @@ describe('CloudflareApi', () => {
 
   describe('Error Mapping', () => {
     it('maps 401 and 403 to UNAUTHORIZED AppErrorException', async () => {
-      const mockFetch401 = vi.fn().mockResolvedValue(
+      // a fresh Response per call: listAccounts retries via /zones, and a body can only be read once
+      const mockFetch401 = vi.fn().mockImplementation(async () =>
         jsonResponse(
           {
             success: false,
@@ -460,7 +522,8 @@ describe('CloudflareApi', () => {
         return err instanceof AppErrorException && err.code === 'UNAUTHORIZED'
       })
 
-      const mockFetch403 = vi.fn().mockResolvedValue(
+      // a fresh Response per call: listAccounts retries via /zones, and a body can only be read once
+      const mockFetch403 = vi.fn().mockImplementation(async () =>
         jsonResponse(
           {
             success: false,

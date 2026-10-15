@@ -71,7 +71,7 @@ export function assertKnownConfigPath(deps: RegisterCommandsDeps, configPath: st
 }
 
 const TUNNEL_PERMISSION_HINT =
-  'In the Cloudflare dashboard, edit the token: add Account > Cloudflare Tunnel > Edit (and under Account Resources include your account), then paste it again.'
+  'In the Cloudflare dashboard, edit the token: it needs Account > Cloudflare Tunnel > Edit with your account chosen under Account Resources. Then paste it again.'
 
 export function registerCommands(router: IpcRouter, deps: RegisterCommandsDeps): void {
   router.register('tunnels.list', () => {
@@ -295,7 +295,7 @@ export function registerCommands(router: IpcRouter, deps: RegisterCommandsDeps):
     if (!accounts || accounts.length === 0) {
       throw new AppErrorException(
         'VALIDATION',
-        `No Cloudflare accounts accessible with this token. ${TUNNEL_PERMISSION_HINT}`
+        `Cloudflare reported no accounts or domains for this token. Check that Account Resources includes your account and Zone Resources includes your domain. ${TUNNEL_PERMISSION_HINT}`
       )
     }
     const selectedAccount = input.accountId

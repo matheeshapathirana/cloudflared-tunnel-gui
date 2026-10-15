@@ -214,13 +214,40 @@ export class CloudflareApi implements ICloudflareApi {
       name: string
       type?: string
     }
-    const result = await this.request<AccountResult[]>(token, '/accounts')
-    if (!Array.isArray(result)) return []
-    return result.map((a) => ({
-      id: a.id,
-      name: a.name,
-      type: a.type || 'standard'
-    }))
+    let direct: AccountResult[] = []
+    try {
+      const result = await this.request<AccountResult[]>(token, '/accounts')
+      if (Array.isArray(result)) direct = result
+    } catch (err) {
+      // /accounts needs account-read access; fall through to the zones lookup below
+      if (!(err instanceof AppErrorException && err.code === 'UNAUTHORIZED')) throw err
+    }
+    if (direct.length > 0) {
+      return direct.map((a) => ({ id: a.id, name: a.name, type: a.type || 'standard' }))
+    }
+    return this.accountsFromZones(token)
+  }
+
+  /**
+   * A token that can manage tunnels and DNS but cannot read account settings gets an empty list
+   * from /accounts. Its zones still say which account they belong to, so use those.
+   */
+  private async accountsFromZones(
+    token: string
+  ): Promise<Array<{ id: string; name: string; type: string }>> {
+    interface ZoneWithAccount {
+      account?: { id?: string; name?: string }
+    }
+    const zones = await this.request<ZoneWithAccount[]>(token, '/zones?status=active&per_page=50')
+    if (!Array.isArray(zones)) return []
+    const byId = new Map<string, { id: string; name: string; type: string }>()
+    for (const zone of zones) {
+      const id = zone.account?.id
+      if (id && !byId.has(id)) {
+        byId.set(id, { id, name: zone.account?.name || id, type: 'standard' })
+      }
+    }
+    return [...byId.values()]
   }
 
   async listZones(
