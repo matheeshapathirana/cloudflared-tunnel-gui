@@ -1,6 +1,6 @@
 // Writes THIRD_PARTY_NOTICES.md: the license text of every npm package whose code ends up in the
-// shipped app (the main process loads three packages at runtime; the renderer bundle contains the
-// UI libraries). Run with `npm run notices` after changing dependencies.
+// shipped app (package.json `dependencies` plus their runtime dependency trees, and the UI libraries
+// that the renderer bundle contains). Run with `npm run notices` after changing dependencies.
 import fs from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'

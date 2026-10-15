@@ -7,12 +7,17 @@ export interface TrayControllerDeps {
   onNavigate: (page: AppPage) => void
   onQuit: () => void
   onToggleTunnel: (id: string, start: boolean) => void
+  /** Quit and install the already-downloaded update. */
+  onInstallUpdate: () => void
   /** PNG files for 100% (16px) and 200% (32px) display scaling. */
   iconPaths: { x1: string; x2: string }
 }
 
 export class TrayController {
   private tray: Tray | null = null
+  private updateVersion: string | null = null
+  private lastTunnels: Tunnel[] = []
+  private lastStatuses = new Map<string, TunnelStatus>()
 
   constructor(private deps: TrayControllerDeps) {}
 
@@ -42,14 +47,22 @@ export class TrayController {
       this.tray.on('double-click', () => {
         this.deps.onOpen()
       })
-      this.updateMenu([], new Map())
+      this.updateMenu(this.lastTunnels, this.lastStatuses)
     } catch {
       // In headless environments or during tests Tray might fail
       this.tray = null
     }
   }
 
+  /** Show a "Restart to update" item for this version, or remove it with null. */
+  public setUpdateReady(version: string | null): void {
+    this.updateVersion = version
+    this.updateMenu(this.lastTunnels, this.lastStatuses)
+  }
+
   public updateMenu(tunnels: Tunnel[], statuses: Map<string, TunnelStatus>): void {
+    this.lastTunnels = tunnels
+    this.lastStatuses = statuses
     if (!this.tray) return
 
     const menuItems: Electron.MenuItemConstructorOptions[] = []
@@ -86,6 +99,16 @@ export class TrayController {
           this.deps.onOpen()
         }
       },
+      ...(this.updateVersion
+        ? [
+            {
+              label: `Restart to update to v${this.updateVersion}`,
+              click: () => {
+                this.deps.onInstallUpdate()
+              }
+            }
+          ]
+        : []),
       {
         label: 'Quit',
         click: () => {

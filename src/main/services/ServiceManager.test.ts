@@ -366,9 +366,14 @@ describe.runIf(process.platform === 'win32')(
       }
     })
 
-    it('Assert-AdminOwned accepts a folder owned by SYSTEM or Administrators', () => {
-      expect(ps(`Assert-AdminOwned 'C:\\ProgramData'`)).toBe('accepted')
-    })
+    // Assumes C:\ProgramData is owned by SYSTEM/Administrators, which does not hold on GitHub-hosted
+    // runners (the test came back 'rejected' there), so it only runs on a real machine.
+    it.skipIf(process.env.CI === 'true')(
+      'Assert-AdminOwned accepts a folder owned by SYSTEM or Administrators',
+      () => {
+        expect(ps(`Assert-AdminOwned 'C:\\ProgramData'`)).toBe('accepted')
+      }
+    )
   }
 )
 

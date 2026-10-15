@@ -12,7 +12,8 @@ import {
   RemoteHostnameSchema,
   CloudflaredServiceSchema,
   BinaryReleaseSchema,
-  DownloadProgressPayloadSchema
+  DownloadProgressPayloadSchema,
+  UpdateStateSchema
 } from './schemas'
 
 describe('schemas', () => {
@@ -21,6 +22,10 @@ describe('schemas', () => {
       const state = defaultAppState()
       expect(AppStateSchema.safeParse(state).success).toBe(true)
       expect(state.theme).toBe('system')
+    })
+
+    it('defaults updates.autoCheck to true', () => {
+      expect(defaultAppState().updates).toEqual({ autoCheck: true })
     })
 
     it('still loads a state file saved before the theme setting existed', () => {
@@ -206,6 +211,7 @@ describe('schemas', () => {
         startup: { launchAtLogin: false, startHidden: true },
         binary: { overridePath: 'C:\\cloudflared.exe' },
         theme: 'dark',
+        updates: { autoCheck: true },
         appVersion: '1.0.0'
       })
       expect(res.success).toBe(true)
@@ -216,8 +222,44 @@ describe('schemas', () => {
         startup: { launchAtLogin: true }
       })
       expect(res.success).toBe(true)
+      expect(SettingsPatchSchema.safeParse({ updates: { autoCheck: false } }).success).toBe(true)
+      expect(SettingsPatchSchema.safeParse({ updates: {} }).success).toBe(true)
+      expect(SettingsPatchSchema.safeParse({ updates: { autoCheck: 'no' } }).success).toBe(false)
       expect(SettingsPatchSchema.safeParse({ theme: 'light' }).success).toBe(true)
       expect(SettingsPatchSchema.safeParse({ theme: 'neon' }).success).toBe(false)
+    })
+  })
+
+  describe('UpdateStateSchema', () => {
+    const statuses = [
+      { state: 'idle' },
+      { state: 'idle', checkedAt: 1760000000000 },
+      { state: 'checking' },
+      { state: 'available', version: '1.0.1' },
+      { state: 'downloading', version: '1.0.1', percent: 42 },
+      { state: 'ready', version: '1.0.1' },
+      { state: 'error', message: 'network down' }
+    ]
+
+    it.each(statuses)('accepts status %j', (status) => {
+      const res = UpdateStateSchema.safeParse({ currentVersion: '1.0.0', status })
+      expect(res.success).toBe(true)
+    })
+
+    it('rejects a downloading status without percent', () => {
+      const res = UpdateStateSchema.safeParse({
+        currentVersion: '1.0.0',
+        status: { state: 'downloading', version: '1.0.1' }
+      })
+      expect(res.success).toBe(false)
+    })
+
+    it('rejects an unknown state', () => {
+      const res = UpdateStateSchema.safeParse({
+        currentVersion: '1.0.0',
+        status: { state: 'installing' }
+      })
+      expect(res.success).toBe(false)
     })
   })
 

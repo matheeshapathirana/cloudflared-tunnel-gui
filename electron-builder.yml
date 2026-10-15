@@ -24,6 +24,17 @@ nsis:
   shortcutName: ${productName}
   uninstallDisplayName: ${productName}
   createDesktopShortcut: always
+  # per-user, one-click install: no administrator rights, installs under the user's profile
+  oneClick: true
+  perMachine: false
+  # uninstalling must keep settings (%APPDATA%\CloudflaredTunnelGUI) and never touch cloudflared
+  deleteAppDataOnUninstall: false
+# Updates come from GitHub Releases. The release workflow creates a DRAFT; the owner publishes it.
+publish:
+  provider: github
+  owner: matheeshapathirana
+  repo: cloudflared-tunnel-gui
+  releaseType: draft
 npmRebuild: false
 # Hardening: nothing here needs Electron to act as a plain Node.js runtime, and the app only ever
 # loads its own code from the signed-off asar.

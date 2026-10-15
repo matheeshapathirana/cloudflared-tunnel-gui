@@ -108,6 +108,24 @@ export const ThemePreferenceSchema = z.enum(['system', 'light', 'dark'])
 
 export type ThemePreference = z.infer<typeof ThemePreferenceSchema>
 
+export const UpdateStatusSchema = z.discriminatedUnion('state', [
+  z.object({ state: z.literal('idle'), checkedAt: z.number().optional() }),
+  z.object({ state: z.literal('checking') }),
+  z.object({ state: z.literal('available'), version: z.string() }),
+  z.object({ state: z.literal('downloading'), version: z.string(), percent: z.number() }),
+  z.object({ state: z.literal('ready'), version: z.string() }),
+  z.object({ state: z.literal('error'), message: z.string() })
+])
+
+export type UpdateStatus = z.infer<typeof UpdateStatusSchema>
+
+export const UpdateStateSchema = z.object({
+  currentVersion: z.string(),
+  status: UpdateStatusSchema
+})
+
+export type UpdateState = z.infer<typeof UpdateStateSchema>
+
 export const AppStateSchema = z.object({
   version: z.literal(1),
   tunnels: z.array(TunnelSchema),
@@ -126,6 +144,8 @@ export const AppStateSchema = z.object({
   }),
   // default keeps state files written before the theme setting existed valid
   theme: ThemePreferenceSchema.default('system'),
+  // default keeps state files written before the updates setting existed valid
+  updates: z.object({ autoCheck: z.boolean() }).default({ autoCheck: true }),
   recentQuickTargets: z.array(z.string()),
   runningPids: z.record(z.string(), z.number())
 })
@@ -142,6 +162,7 @@ export function defaultAppState(): AppState {
       startHidden: true
     },
     theme: 'system',
+    updates: { autoCheck: true },
     recentQuickTargets: [],
     runningPids: {}
   }
@@ -173,6 +194,7 @@ export const SettingsViewSchema = z.object({
     overridePath: z.string().optional()
   }),
   theme: ThemePreferenceSchema,
+  updates: z.object({ autoCheck: z.boolean() }),
   appVersion: z.string()
 })
 
@@ -185,7 +207,12 @@ export const SettingsPatchSchema = z.object({
       startHidden: z.boolean().optional()
     })
     .optional(),
-  theme: ThemePreferenceSchema.optional()
+  theme: ThemePreferenceSchema.optional(),
+  updates: z
+    .object({
+      autoCheck: z.boolean().optional()
+    })
+    .optional()
 })
 
 export type SettingsPatch = z.infer<typeof SettingsPatchSchema>

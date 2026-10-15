@@ -1,6 +1,7 @@
 import { app, BrowserWindow, ipcMain, nativeTheme } from 'electron'
 import { join } from 'node:path'
 import { electronApp, optimizer } from '@electron-toolkit/utils'
+import { autoUpdater } from 'electron-updater'
 import { EVENT_CHANNEL } from '@shared/ipc'
 import { resourcePath } from './assets'
 import { createMainWindow, isTrustedSender } from './window'
@@ -16,6 +17,7 @@ import { SecretStore } from './security/SecretStore'
 import { CloudflareApi } from './api/CloudflareApi'
 import { ServiceManager } from './services/ServiceManager'
 import { ImportService } from './import/ImportService'
+import { UpdateManager } from './update/UpdateManager'
 
 // Set userData path before app ready
 app.setPath('userData', join(app.getPath('appData'), 'CloudflaredTunnelGUI'))
@@ -83,6 +85,29 @@ if (!gotTheLock) {
     secretStore
   })
 
+  const updateManager = new UpdateManager({
+    updater: autoUpdater,
+    currentVersion: app.getVersion(),
+    isPackaged: app.isPackaged,
+    // isQuitting is deliberately not set up front: electron-updater calls app.quit(), and the
+    // before-quit handler below sets it before any window closes. If the install fails the app keeps
+    // running, and close-to-tray must still work.
+    getAutoCheck: () => store.get().updates.autoCheck
+  })
+
+  const readyUpdateVersion = (): string | null => {
+    const { status } = updateManager.getState()
+    return status.state === 'ready' ? status.version : null
+  }
+  // Last ready version pushed to the tray, so the menu is only rebuilt when it actually changes.
+  let trayReadyVersion: string | null = null
+  const syncTrayUpdate = (): void => {
+    const next = readyUpdateVersion()
+    if (next === trayReadyVersion) return
+    trayReadyVersion = next
+    trayController?.setUpdateReady(next)
+  }
+
   const router = new IpcRouter()
   registerCommands(router, {
     registry,
@@ -95,6 +120,7 @@ if (!gotTheLock) {
     serviceManager,
     importService,
     appVersion: app.getVersion(),
+    updateManager,
     quitApp: () => {
       isQuitting = true
       app.quit()
@@ -124,6 +150,14 @@ if (!gotTheLock) {
     trayController?.updateMenu(payload, supervisor.getAllStatuses())
   })
 
+  updateManager.on('state', (payload) => {
+    mainWindow?.webContents.send(EVENT_CHANNEL, {
+      name: 'update:state',
+      payload
+    })
+    syncTrayUpdate()
+  })
+
   supervisor.on('status', ({ id, status }) => {
     mainWindow?.webContents.send(EVENT_CHANNEL, {
       name: 'tunnel:status',
@@ -148,6 +182,7 @@ if (!gotTheLock) {
     })
 
     await store.load()
+    updateManager.start()
     // 'system' follows the Windows app-mode setting live; light/dark override it
     nativeTheme.themeSource = store.get().theme
     await supervisor.cleanupOrphans()
@@ -231,11 +266,21 @@ if (!gotTheLock) {
         } catch {
           // Ignore toggle error
         }
+      },
+      onInstallUpdate: () => {
+        try {
+          updateManager.install()
+        } catch {
+          // not ready: ignore
+        }
       }
     })
 
     trayController.init()
     trayController.updateMenu(registry.list(), supervisor.getAllStatuses())
+    // an update may have become ready before the tray existed: push the current value unconditionally
+    trayReadyVersion = readyUpdateVersion()
+    trayController.setUpdateReady(trayReadyVersion)
 
     app.on('activate', () => {
       if (BrowserWindow.getAllWindows().length === 0) {
@@ -246,6 +291,7 @@ if (!gotTheLock) {
 
   app.on('before-quit', () => {
     isQuitting = true
+    updateManager.stop()
     void supervisor.stopAll()
     trayController?.destroy()
   })

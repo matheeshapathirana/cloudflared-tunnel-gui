@@ -23,6 +23,7 @@ import type {
   SettingsView,
   Tunnel,
   TunnelStatus,
+  UpdateState,
   Zone
 } from '@shared/schemas'
 
@@ -584,6 +585,45 @@ export function useBinaryDownload(): UseMutationResult<
       client.invalidateQueries({ queryKey: ['binary', 'status'] })
       client.invalidateQueries({ queryKey: ['binary', 'update'] })
     }
+  })
+}
+
+export function useUpdateState(): UpdateState | undefined {
+  const client = useQueryClient()
+
+  useEffect(() => {
+    try {
+      const unsubscribe = getApi().on('update:state', (state) => {
+        client.setQueryData(['update', 'state'], state)
+      })
+      return () => {
+        unsubscribe()
+      }
+    } catch {
+      return
+    }
+  }, [client])
+
+  const { data } = useQuery({
+    queryKey: ['update', 'state'],
+    queryFn: () => call('update.getState', undefined)
+  })
+  return data
+}
+
+export function useCheckForUpdate(): UseMutationResult<UpdateState, Error, void> {
+  const client = useQueryClient()
+  return useMutation({
+    mutationFn: () => call('update.check', undefined),
+    onSuccess: (state) => {
+      client.setQueryData(['update', 'state'], state)
+    }
+  })
+}
+
+export function useInstallUpdate(): UseMutationResult<void, Error, void> {
+  return useMutation({
+    mutationFn: () => call('update.install', undefined)
   })
 }
 

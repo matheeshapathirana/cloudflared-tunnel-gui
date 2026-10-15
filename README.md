@@ -57,7 +57,27 @@ npm run build:unpack # unpacked app in dist/win-unpacked
 npm run build:win    # NSIS installer in dist/
 ```
 
-The installer is **not code-signed**, so Windows SmartScreen will warn when it is first run.
+The installer is **not code-signed**, so Windows SmartScreen will warn when it is first run. Updates still verify the downloaded file's hash, but not the publisher, until code signing is added.
+
+## Installing
+
+The installer is per-user: it needs no administrator rights and installs to your user profile. Uninstalling keeps your settings (`%APPDATA%\CloudflaredTunnelGUI`) and never touches `cloudflared` Windows services.
+
+## Updating
+
+The app checks for a new version on launch (after about 30 seconds) and every 6 hours, and downloads it in the background. When it is ready, click **Restart to update** in **Settings → About & Updates** or from the tray menu. Settings has a toggle to turn the automatic check off. Only stable releases are offered.
+
+## Releasing
+
+1. Run `npm version patch` (or `minor` / `major`). This bumps `package.json` and creates the commit and the `v*` tag.
+2. Run `git push --follow-tags`.
+3. Wait for the **Release** GitHub Actions workflow. It checks the tag matches `package.json`, runs lint, typecheck and the tests, builds the installer and uploads it to a **draft** release.
+4. Install and test the installer from the draft release.
+5. Edit the release notes and click **Publish**. Installed apps only see an update after the draft is published.
+
+### Security
+
+Updates are unsigned, so they are trusted by hash only. Enable 2FA on the GitHub account and restrict who can push `v*` tags and publish releases.
 
 ## Where things are stored
 
@@ -78,7 +98,6 @@ Deleting a tunnel is permanent. For a local tunnel the app deletes the tunnel in
 - Windows only.
 - The **Windows service** actions were tested end to end on Windows 11 with disposable services: install (with the token kept in an administrators-only file), restart, adopt (including a service shaped like `cloudflared service install`, which keeps its original arguments), uninstall, and refusing a duplicate. They have not been tested on other Windows versions, and the tunnel-token file's restricted permissions mean the app itself cannot read it back, by design.
 - Service log files (`--logfile`) are not rotated; a long-running service's log keeps growing until the service is uninstalled.
-- No auto-update for the app itself.
 
 ## Project layout
 
