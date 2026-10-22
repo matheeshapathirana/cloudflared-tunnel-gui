@@ -757,6 +757,11 @@ describe('BinaryManager', () => {
       await expect(mgr.download()).rejects.toThrow(
         'No SHA-256 checksum found for this release. Confirmation required'
       )
+      // the UI keys its confirmation step off this tag, not off the message text
+      await expect(mgr.download()).rejects.toMatchObject({
+        code: 'VALIDATION',
+        details: { reason: 'NO_CHECKSUM' }
+      })
     })
   })
 })

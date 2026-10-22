@@ -57,6 +57,7 @@ import { PageContainer } from '@renderer/components/PageContainer'
 import { Badge } from '@renderer/components/ui/badge'
 import { ThemeSwitcher } from '@renderer/components/ThemeSwitcher'
 import { UpdatesCard } from '@renderer/components/UpdatesCard'
+import { DownloadProgress } from '@renderer/components/DownloadProgress'
 import type { Account } from '@shared/schemas'
 
 function formatSource(source: string): string {
@@ -529,18 +530,7 @@ export function SettingsPage(): React.JSX.Element {
                     )}
 
                     {downloadProgress && downloadBinary.isPending && (
-                      <div className="flex flex-col gap-1.5 pt-1">
-                        <div className="flex justify-between text-muted-foreground text-[11px]">
-                          <span>Downloading cloudflared-windows-amd64.exe...</span>
-                          <span>{downloadProgress.percent}%</span>
-                        </div>
-                        <div className="h-2 w-full overflow-hidden rounded-full bg-secondary">
-                          <div
-                            className="h-full bg-blue-600 transition-all duration-200"
-                            style={{ width: `${downloadProgress.percent}%` }}
-                          />
-                        </div>
-                      </div>
+                      <DownloadProgress progress={downloadProgress} />
                     )}
 
                     {downloadError && (

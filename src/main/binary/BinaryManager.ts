@@ -293,7 +293,8 @@ export class BinaryManager {
     if (!release.hasChecksum && !options.confirmWithoutChecksum) {
       throw new AppErrorException(
         'VALIDATION',
-        'No SHA-256 checksum found for this release. Confirmation required to proceed.'
+        'No SHA-256 checksum found for this release. Confirmation required to proceed.',
+        { reason: 'NO_CHECKSUM' }
       )
     }
 
