@@ -106,13 +106,24 @@ export function SettingsPage(): React.JSX.Element {
   const [confirmWithoutChecksum, setConfirmWithoutChecksum] = useState(false)
   const [downloadError, setDownloadError] = useState<string | null>(null)
 
+  // The update query is disabled (manual only), so the post-download invalidation never refetches it
+  // and `updateData` would keep offering the version that was just installed.
+  const [installedVersion, setInstalledVersion] = useState<string | null>(null)
+
   const handleDownloadUpdate = async (): Promise<void> => {
     setDownloadError(null)
+    const targetVersion = updateData?.version ?? null
     try {
       await downloadBinary.mutateAsync({ confirmWithoutChecksum })
+      setInstalledVersion(targetVersion)
     } catch (err) {
       setDownloadError((err as Error).message || 'Failed to download binary.')
     }
+  }
+
+  const handleCheckUpdate = (): void => {
+    setInstalledVersion(null)
+    void checkUpdate()
   }
 
   // Account modal states
@@ -451,7 +462,7 @@ export function SettingsPage(): React.JSX.Element {
               <Button
                 variant="outline"
                 size="sm"
-                onClick={() => checkUpdate()}
+                onClick={handleCheckUpdate}
                 disabled={isCheckingUpdate || downloadBinary.isPending}
                 className="text-xs gap-1.5"
               >
@@ -476,7 +487,15 @@ export function SettingsPage(): React.JSX.Element {
 
             {updateData && (
               <div className="flex flex-col gap-2 rounded-lg border bg-muted/20 p-3 text-xs">
-                {updateData.isUpdateAvailable ? (
+                {installedVersion !== null && !isCheckingUpdate ? (
+                  <div
+                    role="status"
+                    className="flex items-center gap-1.5 text-emerald-600 dark:text-emerald-400 font-medium"
+                  >
+                    <CheckCircle2 className="size-3.5" />
+                    <span>cloudflared updated successfully (version {installedVersion})</span>
+                  </div>
+                ) : updateData.isUpdateAvailable ? (
                   <>
                     <div className="flex items-center justify-between">
                       <div className="flex items-center gap-1.5 font-medium text-blue-600 dark:text-blue-400">
