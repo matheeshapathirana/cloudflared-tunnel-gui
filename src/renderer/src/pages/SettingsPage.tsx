@@ -107,16 +107,23 @@ export function SettingsPage(): React.JSX.Element {
   const [confirmWithoutChecksum, setConfirmWithoutChecksum] = useState(false)
   const [downloadError, setDownloadError] = useState<string | null>(null)
 
-  // The update query is disabled (manual only), so the post-download invalidation never refetches it
-  // and `updateData` would keep offering the version that was just installed.
+  // Version installed from this page, for the success message until the next manual check.
   const [installedVersion, setInstalledVersion] = useState<string | null>(null)
 
   const handleDownloadUpdate = async (): Promise<void> => {
     setDownloadError(null)
     const targetVersion = updateData?.version ?? null
     try {
-      await downloadBinary.mutateAsync({ confirmWithoutChecksum })
-      setInstalledVersion(targetVersion)
+      const status = await downloadBinary.mutateAsync({ confirmWithoutChecksum })
+      if (status.found && status.version === targetVersion) {
+        setInstalledVersion(targetVersion)
+      } else {
+        setDownloadError(
+          status.found && status.source === 'override'
+            ? `Installed ${targetVersion}, but the binary override (${status.path}) is still in use. Clear the override to use the new version.`
+            : `Installed ${targetVersion}, but could not confirm the version now in use. Check for updates again.`
+        )
+      }
     } catch (err) {
       setDownloadError((err as Error).message || 'Failed to download binary.')
     }

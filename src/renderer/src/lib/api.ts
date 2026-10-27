@@ -581,11 +581,24 @@ export function useBinaryDownload(): UseMutationResult<
       call('binary.download', {
         confirmWithoutChecksum: variables?.confirmWithoutChecksum
       }),
-    onSuccess: () => {
-      client.invalidateQueries({ queryKey: ['binary', 'status'] })
-      client.invalidateQueries({ queryKey: ['binary', 'update'] })
+    onSuccess: (status) => {
+      client.setQueryData(['binary', 'status'], status)
+      // The update query is manual-only, so invalidating it never refetches: correct the cached
+      // result here or every Settings visit keeps offering the version that was just installed.
+      client.setQueryData<BinaryRelease>(['binary', 'update'], (release) =>
+        releaseAfterInstall(release, status)
+      )
     }
   })
+}
+
+/** The cached update check once `status` is the active binary after an install. */
+export function releaseAfterInstall(
+  release: BinaryRelease | undefined,
+  status: BinaryStatus
+): BinaryRelease | undefined {
+  if (!release || !status.found || status.version !== release.version) return release
+  return { ...release, isUpdateAvailable: false }
 }
 
 export function useUpdateState(): UpdateState | undefined {
