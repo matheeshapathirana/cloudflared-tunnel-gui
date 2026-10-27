@@ -10,6 +10,18 @@ It supports all three kinds of tunnel in one list:
 | **Remote** (API-managed) | A named tunnel on your own domain, with hostnames and DNS records managed through the Cloudflare API. | A Cloudflare API token (see below).      |
 | **Local** (config-file)  | A named tunnel defined by `~/.cloudflared/*.yml` and a credentials file.                              | `cloudflared tunnel login` (`cert.pem`). |
 
+![All tunnels in one list, with live status and actions](docs/screenshots/tunnels.png)
+
+## Screenshots
+
+| Quick share                                                                          | Ingress rule editor                                                                 |
+| ------------------------------------------------------------------------------------ | ----------------------------------------------------------------------------------- |
+| ![Quick share with a public trycloudflare.com URL](docs/screenshots/quick-share.png) | ![Editing the ingress rules of a local tunnel](docs/screenshots/ingress-editor.png) |
+| **Settings**                                                                         | **Dark theme**                                                                      |
+| ![Cloudflare account and cloudflared binary settings](docs/screenshots/settings.png) | ![The tunnel list in the dark theme](docs/screenshots/tunnels-dark.png)             |
+
+_Screenshots use demo data._
+
 ## Features
 
 - Start and stop tunnels, with live status and logs; crashed tunnels restart with a back-off.
