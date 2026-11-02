@@ -863,7 +863,16 @@ describe('registerCommands', () => {
           'remote.addHostname',
           { zoneId: 'zone-1', hostname: 'x.example.com', service: 'http://a' }
         ],
-        ['remote.removeHostname', { hostname: 'x.example.com' }]
+        ['remote.removeHostname', { hostname: 'x.example.com' }],
+        [
+          'remote.updateHostname',
+          {
+            hostname: 'x.example.com',
+            newHostname: 'x.example.com',
+            service: 'http://a',
+            noTlsVerify: false
+          }
+        ]
       ] as const) {
         const res = await router.dispatch(name, {
           tunnelId: sampleRemoteTunnel.cfTunnelId,
@@ -970,6 +979,696 @@ describe('registerCommands', () => {
       const puts = (mockCloudflareApi.putConfiguration as ReturnType<typeof vi.fn>).mock.calls
       expect(puts).toHaveLength(2)
       expect(puts[1][3]).toEqual(original)
+    })
+
+    describe('remote.updateHostname', () => {
+      it('remote.updateHostname: changing service and TLS only replaces the rule in place, preserves order, and makes no DNS calls', async () => {
+        const initialIngress = [
+          { hostname: 'first.example.com', service: 'http://localhost:1000' },
+          { hostname: 'app.example.com', service: 'http://localhost:3000' },
+          { hostname: 'last.example.com', service: 'http://localhost:5000' },
+          { service: 'http_status:404' }
+        ]
+        const { router, mockCloudflareApi } = setup({
+          cloudflareApi: {
+            getConfiguration: vi.fn(async () => ({ ingress: initialIngress }))
+          }
+        })
+        const res = await router.dispatch('remote.updateHostname', {
+          tunnelId: sampleRemoteTunnel.id,
+          hostname: 'app.example.com',
+          newHostname: 'app.example.com',
+          service: 'http://localhost:3001',
+          noTlsVerify: true
+        })
+        expect(res).toEqual({ ok: true, data: undefined })
+        expect(mockCloudflareApi.putConfiguration).toHaveBeenCalledWith(
+          'mock-token',
+          'acc-1',
+          sampleRemoteTunnel.cfTunnelId,
+          [
+            { hostname: 'first.example.com', service: 'http://localhost:1000' },
+            {
+              hostname: 'app.example.com',
+              service: 'http://localhost:3001',
+              originRequest: { noTLSVerify: true }
+            },
+            { hostname: 'last.example.com', service: 'http://localhost:5000' },
+            { service: 'http_status:404' }
+          ]
+        )
+        expect(mockCloudflareApi.listDnsRecords).not.toHaveBeenCalled()
+        expect(mockCloudflareApi.createDnsCname).not.toHaveBeenCalled()
+        expect(mockCloudflareApi.deleteDnsRecord).not.toHaveBeenCalled()
+        expect(mockCloudflareApi.listZones).not.toHaveBeenCalled()
+      })
+
+      it('remote.updateHostname: keeps other originRequest keys and removes originRequest when empty', async () => {
+        const initialIngress = [
+          {
+            hostname: 'app.example.com',
+            service: 'http://localhost:3000',
+            originRequest: { httpHostHeader: 'x', noTLSVerify: true }
+          },
+          {
+            hostname: 'other.example.com',
+            service: 'http://localhost:4000',
+            originRequest: { noTLSVerify: true }
+          },
+          { service: 'http_status:404' }
+        ]
+        const { router, mockCloudflareApi } = setup({
+          cloudflareApi: {
+            getConfiguration: vi.fn(async () => ({ ingress: initialIngress }))
+          }
+        })
+
+        // Update first rule (has httpHostHeader)
+        const res1 = await router.dispatch('remote.updateHostname', {
+          tunnelId: sampleRemoteTunnel.id,
+          hostname: 'app.example.com',
+          newHostname: 'app.example.com',
+          service: 'http://localhost:3000',
+          noTlsVerify: false
+        })
+        expect(res1).toEqual({ ok: true, data: undefined })
+        const putCall1 = (mockCloudflareApi.putConfiguration as ReturnType<typeof vi.fn>).mock
+          .calls[0][3]
+        expect(putCall1[0]).toEqual({
+          hostname: 'app.example.com',
+          service: 'http://localhost:3000',
+          originRequest: { httpHostHeader: 'x' }
+        })
+
+        // Update second rule (has only noTLSVerify)
+        const res2 = await router.dispatch('remote.updateHostname', {
+          tunnelId: sampleRemoteTunnel.id,
+          hostname: 'other.example.com',
+          newHostname: 'other.example.com',
+          service: 'http://localhost:4000',
+          noTlsVerify: false
+        })
+        expect(res2).toEqual({ ok: true, data: undefined })
+        const putCall2 = (mockCloudflareApi.putConfiguration as ReturnType<typeof vi.fn>).mock
+          .calls[1][3]
+        expect(putCall2[1]).toEqual({
+          hostname: 'other.example.com',
+          service: 'http://localhost:4000'
+        })
+        expect(putCall2[1].originRequest).toBeUndefined()
+      })
+
+      it('remote.updateHostname: path targeting only updates the rule matching the path or no path', async () => {
+        const initialIngress = [
+          { hostname: 'app.example.com', service: 'http://localhost:3000' },
+          { hostname: 'app.example.com', path: '/api', service: 'http://localhost:3001' },
+          { service: 'http_status:404' }
+        ]
+        const { router, mockCloudflareApi } = setup({
+          cloudflareApi: {
+            getConfiguration: vi.fn(async () => ({ ingress: initialIngress }))
+          }
+        })
+
+        // Target path: '/api'
+        const resApi = await router.dispatch('remote.updateHostname', {
+          tunnelId: sampleRemoteTunnel.id,
+          hostname: 'app.example.com',
+          path: '/api',
+          newHostname: 'app.example.com',
+          service: 'http://localhost:9000',
+          noTlsVerify: false
+        })
+        expect(resApi).toEqual({ ok: true, data: undefined })
+        const putCall1 = (mockCloudflareApi.putConfiguration as ReturnType<typeof vi.fn>).mock
+          .calls[0][3]
+        expect(putCall1[0]).toEqual({
+          hostname: 'app.example.com',
+          service: 'http://localhost:3000'
+        })
+        expect(putCall1[1]).toEqual({
+          hostname: 'app.example.com',
+          path: '/api',
+          service: 'http://localhost:9000'
+        })
+
+        // Target path: undefined (no path)
+        const resNoPath = await router.dispatch('remote.updateHostname', {
+          tunnelId: sampleRemoteTunnel.id,
+          hostname: 'app.example.com',
+          newHostname: 'app.example.com',
+          service: 'http://localhost:8000',
+          noTlsVerify: false
+        })
+        expect(resNoPath).toEqual({ ok: true, data: undefined })
+        const putCall2 = (mockCloudflareApi.putConfiguration as ReturnType<typeof vi.fn>).mock
+          .calls[1][3]
+        expect(putCall2[0]).toEqual({
+          hostname: 'app.example.com',
+          service: 'http://localhost:8000'
+        })
+        expect(putCall2[1]).toEqual({
+          hostname: 'app.example.com',
+          path: '/api',
+          service: 'http://localhost:3001'
+        })
+      })
+
+      it('remote.updateHostname: finds a rule whose path is an empty string', async () => {
+        const { router, mockCloudflareApi } = setup({
+          cloudflareApi: {
+            getConfiguration: vi.fn(async () => ({
+              ingress: [
+                { hostname: 'app.example.com', path: '', service: 'http://localhost:3000' },
+                { service: 'http_status:404' }
+              ]
+            }))
+          }
+        })
+
+        const res = await router.dispatch('remote.updateHostname', {
+          tunnelId: sampleRemoteTunnel.id,
+          hostname: 'app.example.com',
+          path: '',
+          newHostname: 'app.example.com',
+          service: 'http://localhost:4000',
+          noTlsVerify: false
+        })
+
+        expect(res).toEqual({ ok: true, data: undefined })
+        expect(mockCloudflareApi.putConfiguration).toHaveBeenCalledWith(
+          'mock-token',
+          'acc-1',
+          sampleRemoteTunnel.cfTunnelId,
+          [
+            { hostname: 'app.example.com', path: '', service: 'http://localhost:4000' },
+            { service: 'http_status:404' }
+          ]
+        )
+      })
+
+      it('remote.updateHostname: keeps rule fields the app does not model', async () => {
+        const { router, mockCloudflareApi } = setup({
+          cloudflareApi: {
+            getConfiguration: vi.fn(async () => ({
+              ingress: [
+                {
+                  hostname: 'app.example.com',
+                  service: 'http://localhost:3000',
+                  futureField: 'keep'
+                },
+                { service: 'http_status:404' }
+              ]
+            }))
+          }
+        })
+
+        await router.dispatch('remote.updateHostname', {
+          tunnelId: sampleRemoteTunnel.id,
+          hostname: 'app.example.com',
+          newHostname: 'app.example.com',
+          service: 'http://localhost:4000',
+          noTlsVerify: false
+        })
+
+        expect(mockCloudflareApi.putConfiguration).toHaveBeenCalledWith(
+          'mock-token',
+          'acc-1',
+          sampleRemoteTunnel.cfTunnelId,
+          [
+            { hostname: 'app.example.com', service: 'http://localhost:4000', futureField: 'keep' },
+            { service: 'http_status:404' }
+          ]
+        )
+      })
+
+      it('remote.updateHostname: rename only deletes the old hostname record, not others the lookup returns', async () => {
+        const target = `${sampleRemoteTunnel.cfTunnelId}.cfargotunnel.com`
+        const { router, mockCloudflareApi } = setup({
+          cloudflareApi: {
+            getConfiguration: vi.fn(async () => ({
+              ingress: [
+                { hostname: 'app.example.com', service: 'http://localhost:3000' },
+                { service: 'http_status:404' }
+              ]
+            })),
+            listDnsRecords: vi.fn(async (_tok, _zoneId, name) =>
+              name === 'app.example.com'
+                ? [
+                    {
+                      id: 'rec-old',
+                      name: 'app.example.com',
+                      type: 'CNAME',
+                      content: target,
+                      proxied: true
+                    },
+                    {
+                      id: 'rec-other',
+                      name: 'other.example.com',
+                      type: 'CNAME',
+                      content: target,
+                      proxied: true
+                    }
+                  ]
+                : []
+            ),
+            listZones: vi.fn(async () => [{ id: 'zone-1', name: 'example.com', status: 'active' }])
+          }
+        })
+
+        const res = await router.dispatch('remote.updateHostname', {
+          tunnelId: sampleRemoteTunnel.id,
+          hostname: 'app.example.com',
+          newHostname: 'renamed.example.com',
+          zoneId: 'zone-1',
+          service: 'http://localhost:3000',
+          noTlsVerify: false
+        })
+
+        expect(res).toEqual({ ok: true, data: undefined })
+        expect(mockCloudflareApi.deleteDnsRecord).toHaveBeenCalledTimes(1)
+        expect(mockCloudflareApi.deleteDnsRecord).toHaveBeenCalledWith(
+          'mock-token',
+          'zone-1',
+          'rec-old'
+        )
+      })
+
+      it('remote.updateHostname: rule not found returns NOT_FOUND and no putConfiguration', async () => {
+        const { router, mockCloudflareApi } = setup()
+        const res = await router.dispatch('remote.updateHostname', {
+          tunnelId: sampleRemoteTunnel.id,
+          hostname: 'missing.example.com',
+          newHostname: 'missing.example.com',
+          service: 'http://localhost:3000',
+          noTlsVerify: false
+        })
+        expect(res).toMatchObject({
+          ok: false,
+          error: { code: 'NOT_FOUND', message: expect.stringContaining('missing.example.com') }
+        })
+        expect(mockCloudflareApi.putConfiguration).not.toHaveBeenCalled()
+      })
+
+      it('remote.updateHostname: rename creates CNAME for new name, deletes old CNAME, and preserves order', async () => {
+        const initialIngress = [
+          { hostname: 'first.example.com', service: 'http://localhost:1000' },
+          { hostname: 'app.example.com', service: 'http://localhost:3000' },
+          { service: 'http_status:404' }
+        ]
+        const { router, mockCloudflareApi } = setup({
+          cloudflareApi: {
+            getConfiguration: vi.fn(async () => ({ ingress: initialIngress })),
+            listDnsRecords: vi.fn(async (_tok, _zoneId, name) => {
+              if (name === 'app.example.com') {
+                return [
+                  {
+                    id: 'rec-old',
+                    name: 'app.example.com',
+                    type: 'CNAME',
+                    content: `${sampleRemoteTunnel.cfTunnelId}.cfargotunnel.com`,
+                    proxied: true
+                  }
+                ]
+              }
+              return []
+            }),
+            listZones: vi.fn(async () => [{ id: 'zone-1', name: 'example.com', status: 'active' }])
+          }
+        })
+
+        const res = await router.dispatch('remote.updateHostname', {
+          tunnelId: sampleRemoteTunnel.id,
+          hostname: 'app.example.com',
+          newHostname: 'renamed.example.com',
+          zoneId: 'zone-1',
+          service: 'http://localhost:3000',
+          noTlsVerify: false
+        })
+        expect(res).toEqual({ ok: true, data: undefined })
+
+        expect(mockCloudflareApi.putConfiguration).toHaveBeenCalledWith(
+          'mock-token',
+          'acc-1',
+          sampleRemoteTunnel.cfTunnelId,
+          [
+            { hostname: 'first.example.com', service: 'http://localhost:1000' },
+            { hostname: 'renamed.example.com', service: 'http://localhost:3000' },
+            { service: 'http_status:404' }
+          ]
+        )
+        expect(mockCloudflareApi.createDnsCname).toHaveBeenCalledWith(
+          'mock-token',
+          'zone-1',
+          'renamed.example.com',
+          `${sampleRemoteTunnel.cfTunnelId}.cfargotunnel.com`
+        )
+        expect(mockCloudflareApi.deleteDnsRecord).toHaveBeenCalledWith(
+          'mock-token',
+          'zone-1',
+          'rec-old'
+        )
+      })
+
+      it('remote.updateHostname: rename when a record already points at this tunnel skips createDnsCname', async () => {
+        const initialIngress = [
+          { hostname: 'app.example.com', service: 'http://localhost:3000' },
+          { service: 'http_status:404' }
+        ]
+        const { router, mockCloudflareApi } = setup({
+          cloudflareApi: {
+            getConfiguration: vi.fn(async () => ({ ingress: initialIngress })),
+            listDnsRecords: vi.fn(async (_tok, _zoneId, name) => {
+              if (name === 'renamed.example.com') {
+                return [
+                  {
+                    id: 'rec-existing',
+                    name: 'renamed.example.com',
+                    type: 'CNAME',
+                    content: `${sampleRemoteTunnel.cfTunnelId}.cfargotunnel.com`,
+                    proxied: true
+                  }
+                ]
+              }
+              if (name === 'app.example.com') {
+                return [
+                  {
+                    id: 'rec-old',
+                    name: 'app.example.com',
+                    type: 'CNAME',
+                    content: `${sampleRemoteTunnel.cfTunnelId}.cfargotunnel.com`,
+                    proxied: true
+                  }
+                ]
+              }
+              return []
+            }),
+            listZones: vi.fn(async () => [{ id: 'zone-1', name: 'example.com', status: 'active' }])
+          }
+        })
+
+        const res = await router.dispatch('remote.updateHostname', {
+          tunnelId: sampleRemoteTunnel.id,
+          hostname: 'app.example.com',
+          newHostname: 'renamed.example.com',
+          zoneId: 'zone-1',
+          service: 'http://localhost:3000',
+          noTlsVerify: false
+        })
+        expect(res).toEqual({ ok: true, data: undefined })
+        expect(mockCloudflareApi.putConfiguration).toHaveBeenCalled()
+        expect(mockCloudflareApi.createDnsCname).not.toHaveBeenCalled()
+        expect(mockCloudflareApi.deleteDnsRecord).toHaveBeenCalledWith(
+          'mock-token',
+          'zone-1',
+          'rec-old'
+        )
+      })
+
+      it('remote.updateHostname: rename onto a DNS record pointing elsewhere returns VALIDATION with no putConfiguration', async () => {
+        const { router, mockCloudflareApi } = setup({
+          cloudflareApi: {
+            listDnsRecords: vi.fn(async () => [
+              {
+                id: 'rec-other',
+                name: 'conflict.example.com',
+                type: 'CNAME',
+                content: 'other.cfargotunnel.com',
+                proxied: true
+              }
+            ])
+          }
+        })
+
+        const res = await router.dispatch('remote.updateHostname', {
+          tunnelId: sampleRemoteTunnel.id,
+          hostname: 'app.example.com',
+          newHostname: 'conflict.example.com',
+          zoneId: 'zone-1',
+          service: 'http://localhost:3000',
+          noTlsVerify: false
+        })
+        expect(res).toMatchObject({
+          ok: false,
+          error: {
+            code: 'VALIDATION',
+            message: expect.stringContaining('other.cfargotunnel.com')
+          }
+        })
+        expect(mockCloudflareApi.putConfiguration).not.toHaveBeenCalled()
+        expect(mockCloudflareApi.createDnsCname).not.toHaveBeenCalled()
+      })
+
+      it('remote.updateHostname: rename without zoneId returns VALIDATION with no putConfiguration', async () => {
+        const { router, mockCloudflareApi } = setup()
+        const res = await router.dispatch('remote.updateHostname', {
+          tunnelId: sampleRemoteTunnel.id,
+          hostname: 'app.example.com',
+          newHostname: 'renamed.example.com',
+          service: 'http://localhost:3000',
+          noTlsVerify: false
+        })
+        expect(res).toMatchObject({
+          ok: false,
+          error: { code: 'VALIDATION' }
+        })
+        expect(mockCloudflareApi.putConfiguration).not.toHaveBeenCalled()
+      })
+
+      it('remote.updateHostname: rename onto a hostname+path another rule already uses returns VALIDATION with no putConfiguration', async () => {
+        const initialIngress = [
+          { hostname: 'app.example.com', path: '/api', service: 'http://localhost:3000' },
+          { hostname: 'existing.example.com', path: '/api', service: 'http://localhost:4000' },
+          { service: 'http_status:404' }
+        ]
+        const { router, mockCloudflareApi } = setup({
+          cloudflareApi: {
+            getConfiguration: vi.fn(async () => ({ ingress: initialIngress }))
+          }
+        })
+
+        const res = await router.dispatch('remote.updateHostname', {
+          tunnelId: sampleRemoteTunnel.id,
+          hostname: 'app.example.com',
+          path: '/api',
+          newHostname: 'existing.example.com',
+          zoneId: 'zone-1',
+          service: 'http://localhost:3000',
+          noTlsVerify: false
+        })
+        expect(res).toMatchObject({
+          ok: false,
+          error: { code: 'VALIDATION' }
+        })
+        expect(mockCloudflareApi.putConfiguration).not.toHaveBeenCalled()
+      })
+
+      it('remote.updateHostname: rename where createDnsCname fails puts original ingress back and returns error', async () => {
+        const original = [
+          { hostname: 'app.example.com', service: 'http://localhost:3000' },
+          { service: 'http_status:404' }
+        ]
+        const { router, mockCloudflareApi } = setup({
+          cloudflareApi: {
+            getConfiguration: vi.fn(async () => ({ ingress: original })),
+            listDnsRecords: vi.fn(async () => []),
+            createDnsCname: vi.fn(async () => {
+              throw new AppErrorException('INTERNAL', 'Cloudflare DNS failed')
+            })
+          }
+        })
+
+        const res = await router.dispatch('remote.updateHostname', {
+          tunnelId: sampleRemoteTunnel.id,
+          hostname: 'app.example.com',
+          newHostname: 'renamed.example.com',
+          zoneId: 'zone-1',
+          service: 'http://localhost:3000',
+          noTlsVerify: false
+        })
+        expect(res).toMatchObject({
+          ok: false,
+          error: { message: 'Cloudflare DNS failed' }
+        })
+        const puts = (mockCloudflareApi.putConfiguration as ReturnType<typeof vi.fn>).mock.calls
+        expect(puts).toHaveLength(2)
+        expect(puts[1][3]).toEqual(original)
+      })
+
+      it('remote.updateHostname: rename where another path rule still uses the old hostname does not delete old DNS record', async () => {
+        const initialIngress = [
+          { hostname: 'app.example.com', service: 'http://localhost:3000' },
+          { hostname: 'app.example.com', path: '/api', service: 'http://localhost:3001' },
+          { service: 'http_status:404' }
+        ]
+        const { router, mockCloudflareApi } = setup({
+          cloudflareApi: {
+            getConfiguration: vi.fn(async () => ({ ingress: initialIngress })),
+            // the old hostname's record exists, so only the sibling-rule check can spare it
+            listDnsRecords: vi.fn(async (_tok, _zoneId, name) =>
+              name === 'app.example.com'
+                ? [
+                    {
+                      id: 'rec-old',
+                      name: 'app.example.com',
+                      type: 'CNAME',
+                      content: `${sampleRemoteTunnel.cfTunnelId}.cfargotunnel.com`,
+                      proxied: true
+                    }
+                  ]
+                : []
+            ),
+            listZones: vi.fn(async () => [{ id: 'zone-1', name: 'example.com', status: 'active' }])
+          }
+        })
+
+        // Renaming only the '/api' rule to 'api.example.com'
+        const res = await router.dispatch('remote.updateHostname', {
+          tunnelId: sampleRemoteTunnel.id,
+          hostname: 'app.example.com',
+          path: '/api',
+          newHostname: 'api.example.com',
+          zoneId: 'zone-1',
+          service: 'http://localhost:3001',
+          noTlsVerify: false
+        })
+        expect(res).toEqual({ ok: true, data: undefined })
+        expect(mockCloudflareApi.createDnsCname).toHaveBeenCalledWith(
+          'mock-token',
+          'zone-1',
+          'api.example.com',
+          `${sampleRemoteTunnel.cfTunnelId}.cfargotunnel.com`
+        )
+        expect(mockCloudflareApi.deleteDnsRecord).not.toHaveBeenCalled()
+      })
+
+      it('remote.updateHostname: rename where deleting old DNS record fails still succeeds', async () => {
+        const initialIngress = [
+          { hostname: 'app.example.com', service: 'http://localhost:3000' },
+          { service: 'http_status:404' }
+        ]
+        const { router, mockCloudflareApi } = setup({
+          cloudflareApi: {
+            getConfiguration: vi.fn(async () => ({ ingress: initialIngress })),
+            listDnsRecords: vi.fn(async (_tok, _zid, name) => {
+              if (name === 'app.example.com') {
+                return [
+                  {
+                    id: 'rec-old',
+                    name: 'app.example.com',
+                    type: 'CNAME',
+                    content: `${sampleRemoteTunnel.cfTunnelId}.cfargotunnel.com`,
+                    proxied: true
+                  }
+                ]
+              }
+              return []
+            }),
+            listZones: vi.fn(async () => [{ id: 'zone-1', name: 'example.com', status: 'active' }]),
+            deleteDnsRecord: vi.fn(async () => {
+              throw new AppErrorException('INTERNAL', 'Failed to delete record')
+            })
+          }
+        })
+
+        const res = await router.dispatch('remote.updateHostname', {
+          tunnelId: sampleRemoteTunnel.id,
+          hostname: 'app.example.com',
+          newHostname: 'renamed.example.com',
+          zoneId: 'zone-1',
+          service: 'http://localhost:3000',
+          noTlsVerify: false
+        })
+        expect(res).toEqual({ ok: true, data: undefined })
+        expect(mockCloudflareApi.putConfiguration).toHaveBeenCalled()
+        expect(mockCloudflareApi.createDnsCname).toHaveBeenCalled()
+        expect(mockCloudflareApi.deleteDnsRecord).toHaveBeenCalled()
+      })
+
+      it('remote.updateHostname: rejects when tunnel is not remote', async () => {
+        const { router, mockCloudflareApi } = setup()
+        const res = await router.dispatch('remote.updateHostname', {
+          tunnelId: sampleLocalTunnel.id,
+          hostname: 'app.example.com',
+          newHostname: 'app.example.com',
+          service: 'http://localhost:3000',
+          noTlsVerify: false
+        })
+        expect(res).toMatchObject({
+          ok: false,
+          error: { code: 'VALIDATION', message: 'Tunnel is not a remote tunnel' }
+        })
+        expect(mockCloudflareApi.putConfiguration).not.toHaveBeenCalled()
+      })
+
+      it('remote.updateHostname: rejects with UNAUTHORIZED when Cloudflare token is not configured', async () => {
+        const { router, mockCloudflareApi } = setup({
+          secretStore: { getToken: vi.fn(async () => null) }
+        })
+        const res = await router.dispatch('remote.updateHostname', {
+          tunnelId: sampleRemoteTunnel.id,
+          hostname: 'app.example.com',
+          newHostname: 'app.example.com',
+          service: 'http://localhost:3000',
+          noTlsVerify: false
+        })
+        expect(res).toMatchObject({
+          ok: false,
+          error: { code: 'UNAUTHORIZED', message: 'Cloudflare token not configured' }
+        })
+        expect(mockCloudflareApi.putConfiguration).not.toHaveBeenCalled()
+      })
+
+      it('remote.updateHostname: rejects with UNAUTHORIZED when Cloudflare account is not selected', async () => {
+        const { router, mockCloudflareApi } = setup({
+          initialState: { account: undefined }
+        })
+        const res = await router.dispatch('remote.updateHostname', {
+          tunnelId: sampleRemoteTunnel.id,
+          hostname: 'app.example.com',
+          newHostname: 'app.example.com',
+          service: 'http://localhost:3000',
+          noTlsVerify: false
+        })
+        expect(res).toMatchObject({
+          ok: false,
+          error: { code: 'UNAUTHORIZED', message: 'Cloudflare account not selected' }
+        })
+        expect(mockCloudflareApi.putConfiguration).not.toHaveBeenCalled()
+      })
+
+      it('remote.updateHostname: rejects with INTERNAL when Cloudflare integration is not configured', async () => {
+        const router = new IpcRouter()
+        registerCommands(router, {
+          registry: {
+            get: () => sampleRemoteTunnel
+          } as unknown as TunnelRegistry,
+          binaryManager: {} as unknown as BinaryManager,
+          store: {} as unknown as SettingsStore,
+          supervisor: {} as unknown as ProcessSupervisor,
+          localConfigStore: {} as unknown as LocalConfigStore,
+          secretStore: undefined,
+          cloudflareApi: undefined,
+          serviceManager: {} as unknown as import('../services/ServiceManager').ServiceManager,
+          importService: {} as unknown as import('../import/ImportService').ImportService,
+          appVersion: '1.2.3',
+          quitApp: vi.fn(),
+          setLoginSettings: vi.fn(),
+          applyTheme: vi.fn(),
+          onDownloadProgress: vi.fn()
+        })
+        const res = await router.dispatch('remote.updateHostname', {
+          tunnelId: sampleRemoteTunnel.id,
+          hostname: 'app.example.com',
+          newHostname: 'app.example.com',
+          service: 'http://localhost:3000',
+          noTlsVerify: false
+        })
+        expect(res).toMatchObject({
+          ok: false,
+          error: { code: 'INTERNAL', message: 'Cloudflare integration not configured' }
+        })
+      })
     })
 
     describe('local.delete', () => {

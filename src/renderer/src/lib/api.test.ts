@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { BinaryRelease, BinaryStatus } from '@shared/schemas'
-import { releaseAfterInstall } from './api'
+import { releaseAfterInstall, ApiError } from './api'
 
 const release: BinaryRelease = {
   version: '2026.10.4',
@@ -37,5 +37,17 @@ describe('releaseAfterInstall', () => {
 
   it('leaves an empty cache empty', () => {
     expect(releaseAfterInstall(undefined, active('2026.10.4'))).toBeUndefined()
+  })
+})
+
+describe('ApiError', () => {
+  it('instantiates with code, message and optional details', () => {
+    const err = new ApiError('VALIDATION', 'Invalid hostname payload', { field: 'hostname' })
+    expect(err).toBeInstanceOf(Error)
+    expect(err).toBeInstanceOf(ApiError)
+    expect(err.name).toBe('ApiError')
+    expect(err.code).toBe('VALIDATION')
+    expect(err.message).toBe('Invalid hostname payload')
+    expect(err.details).toEqual({ field: 'hostname' })
   })
 })

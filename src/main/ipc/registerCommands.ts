@@ -14,6 +14,7 @@ import type {
   UpdateState,
   Tunnel,
   RemoteHostname,
+  IngressRule,
   DownloadProgressPayload,
   ThemePreference
 } from '@shared/schemas'
@@ -480,6 +481,112 @@ export function registerCommands(router: IpcRouter, deps: RegisterCommandsDeps):
           .putConfiguration(token, accountId, tunnel.cfTunnelId, config.ingress)
           .catch(() => {})
         throw err
+      }
+    }
+  })
+
+  router.register('remote.updateHostname', async (input) => {
+    const tunnel = deps.registry.get(input.tunnelId)
+    if (tunnel.kind !== 'remote' || !tunnel.cfTunnelId) {
+      throw new AppErrorException('VALIDATION', 'Tunnel is not a remote tunnel')
+    }
+    if (!deps.secretStore || !deps.cloudflareApi) {
+      throw new AppErrorException('INTERNAL', 'Cloudflare integration not configured')
+    }
+    const token = await deps.secretStore.getToken()
+    if (!token) {
+      throw new AppErrorException('UNAUTHORIZED', 'Cloudflare token not configured')
+    }
+    const accountId = deps.store.get().account?.accountId
+    if (!accountId) {
+      throw new AppErrorException('UNAUTHORIZED', 'Cloudflare account not selected')
+    }
+    const target = `${tunnel.cfTunnelId}.cfargotunnel.com`
+
+    const config = await deps.cloudflareApi.getConfiguration(token, accountId, tunnel.cfTunnelId)
+    const targetPath = input.path || undefined
+    const targetIndex = config.ingress.findIndex(
+      (r) => r.hostname === input.hostname && (r.path || undefined) === targetPath
+    )
+    if (targetIndex === -1) {
+      throw new AppErrorException('NOT_FOUND', `Rule for hostname ${input.hostname} not found`)
+    }
+
+    const renaming = input.newHostname !== input.hostname
+    let dnsAlreadyRoutes = false
+
+    if (renaming) {
+      if (!input.zoneId) {
+        throw new AppErrorException('VALIDATION', 'Zone ID is required when renaming a hostname')
+      }
+      const duplicateRule = config.ingress.some(
+        (r, idx) =>
+          idx !== targetIndex &&
+          r.hostname === input.newHostname &&
+          (r.path || undefined) === targetPath
+      )
+      if (duplicateRule) {
+        throw new AppErrorException(
+          'VALIDATION',
+          `A rule for ${input.newHostname}${targetPath ? ` with path ${targetPath}` : ''} already exists`
+        )
+      }
+      const records = (
+        await deps.cloudflareApi.listDnsRecords(token, input.zoneId, input.newHostname)
+      ).filter((r) => r.name === input.newHostname)
+      const conflict = records.find((r) => r.content !== target)
+      if (conflict) {
+        throw new AppErrorException(
+          'VALIDATION',
+          `${input.newHostname} already has a DNS record pointing to ${conflict.content}. Remove it in Cloudflare or pick another subdomain.`
+        )
+      }
+      dnsAlreadyRoutes = records.length > 0
+    }
+
+    const existingRule = config.ingress[targetIndex]
+    const originRequest = existingRule.originRequest ? { ...existingRule.originRequest } : {}
+    if (input.noTlsVerify) {
+      originRequest.noTLSVerify = true
+    } else {
+      delete originRequest.noTLSVerify
+    }
+
+    const updatedRule: IngressRule = {
+      ...existingRule,
+      hostname: input.newHostname,
+      service: input.service,
+      originRequest: Object.keys(originRequest).length > 0 ? originRequest : undefined
+    }
+
+    const newIngress = config.ingress.map((r, idx) => (idx === targetIndex ? updatedRule : r))
+    await deps.cloudflareApi.putConfiguration(token, accountId, tunnel.cfTunnelId, newIngress)
+
+    if (renaming && !dnsAlreadyRoutes) {
+      try {
+        await deps.cloudflareApi.createDnsCname(token, input.zoneId!, input.newHostname, target)
+      } catch (err) {
+        await deps.cloudflareApi
+          .putConfiguration(token, accountId, tunnel.cfTunnelId, config.ingress)
+          .catch(() => {})
+        throw err
+      }
+    }
+
+    // The routing change has succeeded by now, so a failed cleanup only leaves a stale CNAME behind.
+    if (renaming && !newIngress.some((r) => r.hostname === input.hostname)) {
+      const zones = await deps.cloudflareApi.listZones(token, accountId).catch(() => [])
+      for (const zone of zones) {
+        try {
+          const records = await deps.cloudflareApi.listDnsRecords(token, zone.id, input.hostname)
+          for (const record of records) {
+            if (record.name === input.hostname && record.content === target) {
+              await deps.cloudflareApi.deleteDnsRecord(token, zone.id, record.id)
+            }
+          }
+        } catch {
+          // Move on to the next zone
+        }
       }
     }
   })

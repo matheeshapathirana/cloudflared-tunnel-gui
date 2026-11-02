@@ -435,6 +435,30 @@ export function useAddRemoteHostname(): UseMutationResult<
   })
 }
 
+export function useUpdateRemoteHostname(): UseMutationResult<
+  void,
+  Error,
+  {
+    tunnelId: string
+    hostname: string
+    path?: string
+    newHostname: string
+    zoneId?: string
+    service: string
+    noTlsVerify: boolean
+  }
+> {
+  const client = useQueryClient()
+  return useMutation({
+    mutationFn: (input) => call('remote.updateHostname', input),
+    onSuccess: (_, variables) => {
+      client.invalidateQueries({
+        queryKey: ['remote', 'hostnames', variables.tunnelId]
+      })
+    }
+  })
+}
+
 export function useRemoveRemoteHostname(): UseMutationResult<
   void,
   Error,

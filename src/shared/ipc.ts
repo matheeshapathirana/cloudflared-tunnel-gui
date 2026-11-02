@@ -93,6 +93,18 @@ export const commands = {
     }),
     z.void()
   ),
+  'remote.updateHostname': cmd(
+    z.object({
+      tunnelId: z.string(),
+      hostname: z.string().min(1),
+      path: z.string().optional(),
+      newHostname: z.string().min(1),
+      zoneId: z.string().optional(),
+      service: z.string().min(1),
+      noTlsVerify: z.boolean()
+    }),
+    z.void()
+  ),
   'remote.removeHostname': cmd(
     z.object({
       tunnelId: z.string(),
