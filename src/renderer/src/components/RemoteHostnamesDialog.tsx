@@ -1,5 +1,15 @@
 import React, { useState, useMemo } from 'react'
-import { X, Globe, Plus, Trash2, Loader2, ArrowRight, ShieldAlert, ChevronUp } from 'lucide-react'
+import {
+  X,
+  Globe,
+  Plus,
+  Trash2,
+  Loader2,
+  ArrowRight,
+  ShieldAlert,
+  ChevronUp,
+  Pencil
+} from 'lucide-react'
 import { Button } from './ui/button'
 import { Input } from './ui/input'
 import { Label } from './ui/label'
@@ -9,9 +19,255 @@ import {
   useAccountZones,
   useRemoteHostnames,
   useAddRemoteHostname,
+  useUpdateRemoteHostname,
   useRemoveRemoteHostname
 } from '../lib/api'
-import type { Tunnel } from '@shared/schemas'
+import {
+  normalizeServiceUrl,
+  findZoneForHostname,
+  subdomainFor,
+  computeHostname,
+  getRowKey
+} from '../lib/remoteHostnames'
+import type { Tunnel, RemoteHostname, Zone } from '@shared/schemas'
+
+interface HostnameFormData {
+  hostname: string
+  service: string
+  noTlsVerify: boolean
+  zoneId?: string
+}
+
+interface HostnameFormProps {
+  mode: 'add' | 'edit'
+  zones: Zone[]
+  isZonesLoading: boolean
+  initialItem?: RemoteHostname
+  isPending: boolean
+  onSubmit: (data: HostnameFormData) => Promise<void>
+  onCancel: () => void
+}
+
+function HostnameForm({
+  mode,
+  zones,
+  isZonesLoading,
+  initialItem,
+  isPending,
+  onSubmit,
+  onCancel
+}: HostnameFormProps): React.JSX.Element {
+  const isEdit = mode === 'edit'
+  // Fixed when the form opens. If zones arrived later, an empty subdomain would read as a rename to the apex.
+  const [matchedZone] = useState(() =>
+    initialItem ? findZoneForHostname(initialItem.hostname, zones) : undefined
+  )
+  const isUnknownZone = isEdit && !matchedZone
+
+  const [selectedZoneId, setSelectedZoneId] = useState<string>(() => {
+    if (isEdit && matchedZone) {
+      return matchedZone.id
+    }
+    return zones.length > 0 ? zones[0].id : ''
+  })
+
+  const [subdomain, setSubdomain] = useState<string>(() => {
+    if (isEdit && matchedZone && initialItem) {
+      return subdomainFor(initialItem.hostname, matchedZone.name)
+    }
+    return ''
+  })
+
+  const [service, setService] = useState<string>(() => initialItem?.service ?? 'http://localhost:')
+  const [noTlsVerify, setNoTlsVerify] = useState<boolean>(() => Boolean(initialItem?.noTlsVerify))
+
+  const activeZoneId = selectedZoneId || (zones.length > 0 ? zones[0].id : '')
+  const selectedZone = useMemo(() => {
+    return zones.find((z) => z.id === activeZoneId)
+  }, [zones, activeZoneId])
+
+  const computedHostname = useMemo(() => {
+    if (isUnknownZone && initialItem) {
+      return initialItem.hostname
+    }
+    return computeHostname(subdomain, selectedZone?.name ?? '')
+  }, [isUnknownZone, initialItem, subdomain, selectedZone])
+
+  const handleSubmit = async (e: React.FormEvent): Promise<void> => {
+    e.preventDefault()
+    const targetService = normalizeServiceUrl(service)
+    if (isEdit) {
+      const finalHostname = isUnknownZone ? (initialItem?.hostname ?? '') : computedHostname
+      const renaming = initialItem ? finalHostname !== initialItem.hostname : false
+      await onSubmit({
+        hostname: finalHostname,
+        service: targetService,
+        noTlsVerify,
+        zoneId: renaming ? activeZoneId : undefined
+      })
+    } else {
+      await onSubmit({
+        hostname: computedHostname,
+        service: targetService,
+        noTlsVerify,
+        zoneId: activeZoneId
+      })
+    }
+  }
+
+  return (
+    <form
+      onSubmit={handleSubmit}
+      className="rounded-lg border border-border bg-muted/60 p-4 space-y-4"
+    >
+      <div className="flex items-center justify-between">
+        <span className="text-xs font-semibold text-foreground uppercase tracking-wider">
+          {isEdit ? 'Edit Public Hostname' : 'New Public Hostname'}
+        </span>
+        {computedHostname && (
+          <Badge variant="secondary" className="font-mono text-xs">
+            {computedHostname}
+          </Badge>
+        )}
+      </div>
+
+      {isUnknownZone ? (
+        <div className="space-y-1.5">
+          <Label htmlFor="hostname-readonly" className="text-xs text-foreground/80">
+            Hostname
+          </Label>
+          <Input
+            id="hostname-readonly"
+            value={initialItem?.hostname ?? ''}
+            readOnly
+            disabled
+            className="h-9 text-xs font-mono bg-muted/50 cursor-not-allowed"
+          />
+        </div>
+      ) : (
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+          {/* Zone Picker */}
+          <div className="space-y-1.5">
+            <Label htmlFor="zone-select" className="text-xs text-foreground/80">
+              DNS Zone (Domain)
+            </Label>
+            {isZonesLoading ? (
+              <div className="flex h-9 items-center rounded-md border border-border bg-muted px-3 text-xs text-muted-foreground">
+                Loading zones...
+              </div>
+            ) : zones.length === 0 ? (
+              <div className="text-xs text-amber-600 dark:text-amber-400">
+                No DNS zones found on your account.
+              </div>
+            ) : (
+              <select
+                id="zone-select"
+                value={activeZoneId}
+                onChange={(e) => setSelectedZoneId(e.target.value)}
+                className="w-full rounded-md border border-border bg-card px-3 py-2 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
+              >
+                {zones.map((z) => (
+                  <option key={z.id} value={z.id}>
+                    {z.name} ({z.status})
+                  </option>
+                ))}
+              </select>
+            )}
+          </div>
+
+          {/* Subdomain Input */}
+          <div className="space-y-1.5">
+            <Label htmlFor="subdomain" className="text-xs text-foreground/80">
+              Subdomain <span className="text-muted-foreground">(leave blank or @ for apex)</span>
+            </Label>
+            <Input
+              id="subdomain"
+              placeholder="e.g. app, api, dev"
+              value={subdomain}
+              onChange={(e) => setSubdomain(e.target.value)}
+              className="h-9 text-xs"
+            />
+          </div>
+        </div>
+      )}
+
+      {/* Path Input (Read-only if present) */}
+      {initialItem?.path && (
+        <div className="space-y-1.5">
+          <Label htmlFor="path-readonly" className="text-xs text-foreground/80">
+            Path
+          </Label>
+          <Input
+            id="path-readonly"
+            value={initialItem.path}
+            readOnly
+            disabled
+            className="h-9 text-xs font-mono bg-muted/50 cursor-not-allowed"
+          />
+        </div>
+      )}
+
+      {/* Service URL Input */}
+      <div className="space-y-1.5">
+        <Label htmlFor="service-url" className="text-xs text-foreground/80">
+          Target Service URL
+        </Label>
+        <Input
+          id="service-url"
+          placeholder="e.g. http://localhost:3000, 8080"
+          value={service}
+          onChange={(e) => setService(e.target.value)}
+          className="h-9 text-xs font-mono"
+        />
+      </div>
+
+      {/* Options */}
+      <div className="flex items-center justify-between rounded border border-border bg-card/50 p-2.5">
+        <div className="space-y-0.5">
+          <Label htmlFor="no-tls" className="text-xs font-medium text-foreground/80 cursor-pointer">
+            No TLS Verify
+          </Label>
+          <p className="text-[11px] text-muted-foreground">
+            Disables TLS certificate verification on HTTPS origin services.
+          </p>
+        </div>
+        <Switch id="no-tls" checked={noTlsVerify} onCheckedChange={setNoTlsVerify} />
+      </div>
+
+      {/* Submit Buttons */}
+      <div className="flex justify-end gap-2 pt-1">
+        <Button
+          type="button"
+          variant="ghost"
+          size="sm"
+          disabled={isPending}
+          onClick={onCancel}
+          className="text-xs"
+        >
+          Cancel
+        </Button>
+        <Button
+          type="submit"
+          size="sm"
+          disabled={
+            isPending ||
+            (isUnknownZone
+              ? !service.trim()
+              : !computedHostname || !activeZoneId || !service.trim())
+          }
+          className="gap-1.5 text-xs"
+        >
+          {isPending ? (
+            <Loader2 className="h-3.5 w-3.5 animate-spin" />
+          ) : isEdit ? null : (
+            <Plus className="h-3.5 w-3.5" />
+          )}
+          {isEdit ? 'Save Changes' : 'Save & Route Hostname'}
+        </Button>
+      </div>
+    </form>
+  )
+}
 
 interface RemoteHostnamesDialogProps {
   tunnel: Tunnel
@@ -29,74 +285,74 @@ export function RemoteHostnamesDialog({
   const { data: hostnames = [], isLoading: isHostnamesLoading } = useRemoteHostnames(tunnelId)
   const { data: zones = [], isLoading: isZonesLoading } = useAccountZones()
   const addMutation = useAddRemoteHostname()
+  const updateMutation = useUpdateRemoteHostname()
   const removeMutation = useRemoveRemoteHostname()
 
   const [isAddOpen, setIsAddOpen] = useState(false)
-  const [selectedZoneId, setSelectedZoneId] = useState<string>('')
-  const [subdomain, setSubdomain] = useState('')
-  const [service, setService] = useState('http://localhost:')
-  const [noTlsVerify, setNoTlsVerify] = useState(false)
+  const [editingRowKey, setEditingRowKey] = useState<string | null>(null)
   const [deletingHostname, setDeletingHostname] = useState<string | null>(null)
   const [errorMsg, setErrorMsg] = useState<string | null>(null)
 
-  // Default to first zone if none selected
-  const activeZoneId = selectedZoneId || (zones.length > 0 ? zones[0].id : '')
-  const selectedZone = useMemo(() => {
-    return zones.find((z) => z.id === activeZoneId)
-  }, [zones, activeZoneId])
+  const isAnyMutationPending =
+    addMutation.isPending || updateMutation.isPending || removeMutation.isPending
 
-  // Compute preview hostname
-  const computedHostname = useMemo(() => {
-    if (!selectedZone) return ''
-    const trimmed = subdomain.trim()
-    if (!trimmed || trimmed === '@') {
-      return selectedZone.name
-    }
-    if (trimmed.endsWith(`.${selectedZone.name}`)) {
-      return trimmed
-    }
-    return `${trimmed}.${selectedZone.name}`
-  }, [selectedZone, subdomain])
-
-  const handleAddHostname = async (e: React.FormEvent): Promise<void> => {
-    e.preventDefault()
+  const handleAddHostname = async (data: HostnameFormData): Promise<void> => {
     setErrorMsg(null)
 
-    if (!activeZoneId) {
+    if (!data.zoneId) {
       setErrorMsg('Please select a DNS zone.')
       return
     }
 
-    if (!computedHostname) {
+    if (!data.hostname) {
       setErrorMsg('Please enter a valid hostname.')
       return
-    }
-
-    let targetService = service.trim()
-    if (/^\d+$/.test(targetService)) {
-      targetService = `http://localhost:${targetService}`
-    } else if (
-      !/^https?:\/\//i.test(targetService) &&
-      !/^(tcp|unix|rdp|ssh):\/\//i.test(targetService)
-    ) {
-      targetService = `http://${targetService}`
     }
 
     try {
       await addMutation.mutateAsync({
         tunnelId,
-        zoneId: activeZoneId,
-        hostname: computedHostname,
-        service: targetService,
-        noTlsVerify: noTlsVerify || undefined
+        zoneId: data.zoneId,
+        hostname: data.hostname,
+        service: data.service,
+        noTlsVerify: data.noTlsVerify || undefined
       })
-      // Reset form
-      setSubdomain('')
-      setService('http://localhost:')
-      setNoTlsVerify(false)
       setIsAddOpen(false)
     } catch (err) {
       setErrorMsg((err as Error).message || 'Failed to add hostname.')
+    }
+  }
+
+  const handleUpdateHostname = async (
+    item: RemoteHostname,
+    data: HostnameFormData
+  ): Promise<void> => {
+    setErrorMsg(null)
+
+    const renaming = data.hostname !== item.hostname
+    if (renaming && !data.zoneId) {
+      setErrorMsg('Please select a DNS zone.')
+      return
+    }
+
+    if (!data.hostname) {
+      setErrorMsg('Please enter a valid hostname.')
+      return
+    }
+
+    try {
+      await updateMutation.mutateAsync({
+        tunnelId,
+        hostname: item.hostname,
+        path: item.path,
+        newHostname: data.hostname,
+        zoneId: renaming ? data.zoneId : undefined,
+        service: data.service,
+        noTlsVerify: data.noTlsVerify
+      })
+      setEditingRowKey(null)
+    } catch (err) {
+      setErrorMsg((err as Error).message || 'Failed to update hostname.')
     }
   }
 
@@ -167,7 +423,11 @@ export function RemoteHostnamesDialog({
             <Button
               variant="outline"
               size="sm"
-              onClick={() => setIsAddOpen((prev) => !prev)}
+              onClick={() => {
+                setErrorMsg(null)
+                setEditingRowKey(null)
+                setIsAddOpen((prev) => !prev)
+              }}
               className="gap-1.5 text-xs"
             >
               {isAddOpen ? (
@@ -186,123 +446,14 @@ export function RemoteHostnamesDialog({
 
           {/* Add Hostname Collapsible Section */}
           {isAddOpen && (
-            <form
+            <HostnameForm
+              mode="add"
+              zones={zones}
+              isZonesLoading={isZonesLoading}
+              isPending={addMutation.isPending}
               onSubmit={handleAddHostname}
-              className="rounded-lg border border-border bg-muted/60 p-4 space-y-4"
-            >
-              <div className="flex items-center justify-between">
-                <span className="text-xs font-semibold text-foreground uppercase tracking-wider">
-                  New Public Hostname
-                </span>
-                {computedHostname && (
-                  <Badge variant="secondary" className="font-mono text-xs">
-                    {computedHostname}
-                  </Badge>
-                )}
-              </div>
-
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                {/* Zone Picker */}
-                <div className="space-y-1.5">
-                  <Label htmlFor="zone-select" className="text-xs text-foreground/80">
-                    DNS Zone (Domain)
-                  </Label>
-                  {isZonesLoading ? (
-                    <div className="flex h-9 items-center rounded-md border border-border bg-muted px-3 text-xs text-muted-foreground">
-                      Loading zones...
-                    </div>
-                  ) : zones.length === 0 ? (
-                    <div className="text-xs text-amber-600 dark:text-amber-400">
-                      No DNS zones found on your account.
-                    </div>
-                  ) : (
-                    <select
-                      id="zone-select"
-                      value={activeZoneId}
-                      onChange={(e) => setSelectedZoneId(e.target.value)}
-                      className="w-full rounded-md border border-border bg-card px-3 py-2 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary"
-                    >
-                      {zones.map((z) => (
-                        <option key={z.id} value={z.id}>
-                          {z.name} ({z.status})
-                        </option>
-                      ))}
-                    </select>
-                  )}
-                </div>
-
-                {/* Subdomain Input */}
-                <div className="space-y-1.5">
-                  <Label htmlFor="subdomain" className="text-xs text-foreground/80">
-                    Subdomain{' '}
-                    <span className="text-muted-foreground">(leave blank or @ for apex)</span>
-                  </Label>
-                  <Input
-                    id="subdomain"
-                    placeholder="e.g. app, api, dev"
-                    value={subdomain}
-                    onChange={(e) => setSubdomain(e.target.value)}
-                    className="h-9 text-xs"
-                  />
-                </div>
-              </div>
-
-              {/* Service URL Input */}
-              <div className="space-y-1.5">
-                <Label htmlFor="service-url" className="text-xs text-foreground/80">
-                  Target Service URL
-                </Label>
-                <Input
-                  id="service-url"
-                  placeholder="e.g. http://localhost:3000, 8080"
-                  value={service}
-                  onChange={(e) => setService(e.target.value)}
-                  className="h-9 text-xs font-mono"
-                />
-              </div>
-
-              {/* Options */}
-              <div className="flex items-center justify-between rounded border border-border bg-card/50 p-2.5">
-                <div className="space-y-0.5">
-                  <Label
-                    htmlFor="no-tls"
-                    className="text-xs font-medium text-foreground/80 cursor-pointer"
-                  >
-                    No TLS Verify
-                  </Label>
-                  <p className="text-[11px] text-muted-foreground">
-                    Disables TLS certificate verification on HTTPS origin services.
-                  </p>
-                </div>
-                <Switch id="no-tls" checked={noTlsVerify} onCheckedChange={setNoTlsVerify} />
-              </div>
-
-              {/* Submit Buttons */}
-              <div className="flex justify-end gap-2 pt-1">
-                <Button
-                  type="button"
-                  variant="ghost"
-                  size="sm"
-                  onClick={() => setIsAddOpen(false)}
-                  className="text-xs"
-                >
-                  Cancel
-                </Button>
-                <Button
-                  type="submit"
-                  size="sm"
-                  disabled={addMutation.isPending || !computedHostname || !activeZoneId}
-                  className="gap-1.5 text-xs"
-                >
-                  {addMutation.isPending ? (
-                    <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                  ) : (
-                    <Plus className="h-3.5 w-3.5" />
-                  )}
-                  Save &amp; Route Hostname
-                </Button>
-              </div>
-            </form>
+              onCancel={() => setIsAddOpen(false)}
+            />
           )}
 
           {/* List of Hostnames */}
@@ -326,10 +477,26 @@ export function RemoteHostnamesDialog({
           ) : (
             <div className="space-y-2">
               {hostnames.map((item) => {
+                const rowKey = getRowKey(item)
+                if (editingRowKey === rowKey) {
+                  return (
+                    <HostnameForm
+                      key={rowKey}
+                      mode="edit"
+                      zones={zones}
+                      isZonesLoading={isZonesLoading}
+                      initialItem={item}
+                      isPending={updateMutation.isPending}
+                      onSubmit={(data) => handleUpdateHostname(item, data)}
+                      onCancel={() => setEditingRowKey(null)}
+                    />
+                  )
+                }
+
                 const isDeleting = deletingHostname === item.hostname
                 return (
                   <div
-                    key={item.hostname}
+                    key={rowKey}
                     className="flex items-center justify-between rounded-lg border border-border bg-muted/40 p-3 transition-colors hover:border-foreground/30"
                   >
                     <div className="flex items-center gap-3 min-w-0">
@@ -358,20 +525,36 @@ export function RemoteHostnamesDialog({
                       </div>
                     </div>
 
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      disabled={isDeleting || removeMutation.isPending}
-                      onClick={() => handleDeleteHostname(item.hostname)}
-                      className="h-8 px-2 text-muted-foreground hover:text-destructive hover:bg-destructive/10 shrink-0 ml-2"
-                      aria-label={`Delete hostname ${item.hostname}`}
-                    >
-                      {isDeleting ? (
-                        <Loader2 className="h-4 w-4 animate-spin text-destructive" />
-                      ) : (
-                        <Trash2 className="h-4 w-4" />
-                      )}
-                    </Button>
+                    <div className="flex items-center gap-1 shrink-0 ml-2">
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        disabled={isZonesLoading || isAnyMutationPending}
+                        onClick={() => {
+                          setIsAddOpen(false)
+                          setErrorMsg(null)
+                          setEditingRowKey(rowKey)
+                        }}
+                        className="h-8 px-2 text-muted-foreground hover:text-foreground shrink-0"
+                        aria-label={`Edit hostname ${item.hostname}`}
+                      >
+                        <Pencil className="h-4 w-4" />
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        disabled={isDeleting || isAnyMutationPending}
+                        onClick={() => handleDeleteHostname(item.hostname)}
+                        className="h-8 px-2 text-muted-foreground hover:text-destructive hover:bg-destructive/10 shrink-0"
+                        aria-label={`Delete hostname ${item.hostname}`}
+                      >
+                        {isDeleting ? (
+                          <Loader2 className="h-4 w-4 animate-spin text-destructive" />
+                        ) : (
+                          <Trash2 className="h-4 w-4" />
+                        )}
+                      </Button>
+                    </div>
                   </div>
                 )
               })}
